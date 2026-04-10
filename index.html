@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Maze Runner - Babylon.js</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        
+        #uiLayer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        
+        #uiLayer h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        #uiLayer p {
+            font-size: 14px;
+            margin: 3px 0;
+        }
+        
+        /* Minimap styling - circular overlay */
+        #minimapContainer {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 200px;
+            z-index: 10;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+        
+        #minimapCanvas {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main 3D canvas -->
+    <canvas id="renderCanvas"></canvas>
+    
+    <!-- UI instructions -->
+    <div id="uiLayer">
+        <h1>3D Maze Runner</h1>
+        <p>Click chuột để bắt đầu</p>
+        <p>W, A, S, D để di chuyển</p>
+        <p>Tìm khối vàng phát sáng để thắng</p>
+    </div>
+    
+    <!-- Circular minimap -->
+    <div id="minimapContainer">
+        <canvas id="minimapCanvas" width="200" height="200"></canvas>
+    </div>
+
+    <script>
+        // ============================================
+        // MAP CONFIGURATION - 20x15 (larger maze)
+        // 1 = Wall, 0 = Path, 2 = Goal, 3 = Spawn
+        // ============================================
+        const mapGrid = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 3, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        // ============================================
+        // GLOBAL VARIABLES
+        // ============================================
+        let canvas, engine, scene, camera, goalMesh, spawnPosition;
+        let minimapCanvas, minimapCtx;
+        const rows = mapGrid.length;
+        const cols = mapGrid[0].length;
+        
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        window.addEventListener('DOMContentLoaded', function() {
+            canvas = document.getElementById('renderCanvas');
+            minimapCanvas = document.getElementById('minimapCanvas');
+            minimapCtx = minimapCanvas.getContext('2d');
+            
+            // Create Babylon.js engine and scene
+            engine = new BABYLON.Engine(canvas, true);
+            scene = createScene();
+            
+            // Start render loop
+            engine.runRenderLoop(function() {
+                scene.render();
+                drawMinimap(); // Update minimap each frame
+            });
+            
+            // Handle resize
+            window.addEventListener('resize', function() {
+                engine.resize();
+            });
+            
+            // Setup pointer lock for mouse look
+            setupPointerLock();
+        });
+
+        // ============================================
+        // SCENE CREATION
+        // ============================================
+        function createScene() {
+            const scene = new BABYLON.Scene(engine);
+            scene.collisionsEnabled = true;
+            
+            // Lighting
+            const light = new BABYLON.HemisphericLight(
+                'hemiLight',
+                new BABYLON.Vector3(0, 1, 0),
+                scene
+            );
+            light.intensity = 0.4;
+            
+            // Materials
+            const wallMaterial = new BABYLON.StandardMaterial('wallMat', scene);
+            wallMaterial.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.2); // Dark blue-gray
+            
+            const floorMaterial = new BABYLON.StandardMaterial('floorMat', scene);
+            floorMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.65); // Light beige/gray
+            
+            const ceilingMaterial = new BABYLON.StandardMaterial('ceilingMat', scene);
+            ceilingMaterial.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.15); // Very dark
+            
+            const goalMaterial = new BABYLON.StandardMaterial('goalMat', scene);
+            goalMaterial.emissiveColor = new BABYLON.Color3(1, 1, 0);
+            
+            // Floor
+            const floor = BABYLON.MeshBuilder.CreateGround(
+                'floor',
+                { width: cols, height: rows },
+                scene
+            );
+            floor.position = new BABYLON.Vector3(cols / 2 - 0.5, 0, rows / 2 - 0.5);
+            floor.checkCollisions = true;
+            floor.material = floorMaterial;
+            
+            // Ceiling
+            const ceiling = BABYLON.MeshBuilder.CreateGround(
+                'ceiling',
+                { width: cols, height: rows },
+                scene
+            );
+            ceiling.position = new BABYLON.Vector3(cols / 2 - 0.5, 3, rows / 2 - 0.5);
+            ceiling.rotation.x = Math.PI;
+            ceiling.checkCollisions = true;
+            ceiling.material = ceilingMaterial;
+            
+            // Build maze from map grid
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const cell = mapGrid[row][col];
+                    const x = col;
+                    const z = rows - 1 - row;
+                    
+                    if (cell === 1) {
+                        // Wall
+                        const wall = BABYLON.MeshBuilder.CreateBox(
+                            'wall_' + row + '_' + col,
+                            { width: 1, height: 3, depth: 1 },
+                            scene
+                        );
+                        wall.position = new BABYLON.Vector3(x, 1.5, z);
+                        wall.checkCollisions = true;
+                        wall.material = wallMaterial;
+                    } else if (cell === 2) {
+                        // Goal
+                        goalMesh = BABYLON.MeshBuilder.CreateBox(
+                            'goal',
+                            { size: 0.5 },
+                            scene
+                        );
+                        goalMesh.position = new BABYLON.Vector3(x, 1, z);
+                        goalMesh.material = goalMaterial;
+                    } else if (cell === 3) {
+                        // Spawn point
+                        spawnPosition = new BABYLON.Vector3(x, 1.5, z);
+                    }
+                }
+            }
+            
+            // Player camera
+            camera = new BABYLON.UniversalCamera('playerCamera', spawnPosition, scene);
+            camera.attachControl(canvas, true);
+            camera.checkCollisions = true;
+            camera.ellipsoid = new BABYLON.Vector3(0.4, 1, 0.4);
+            camera.minZ = 0.1; // Prevent seeing through walls
+            camera.keysUp = [87, 38];      // W, Arrow Up
+            camera.keysDown = [83, 40];    // S, Arrow Down
+            camera.keysLeft = [65, 37];    // A, Arrow Left
+            camera.keysRight = [68, 39];   // D, Arrow Right
+            camera.speed = 0.15;
+            camera.angularSensibility = 1800;
+            
+            // Win condition check
+            let hasWon = false;
+            scene.onBeforeRenderObservable.add(function() {
+                if (goalMesh && !hasWon) {
+                    const distance = BABYLON.Vector3.Distance(camera.position, goalMesh.position);
+                    if (distance < 1.5) {
+                        hasWon = true;
+                        
+                        // Exit pointer lock first
+                        if (document.pointerLockElement === canvas) {
+                            document.exitPointerLock();
+                        }
+                        
+                        setTimeout(function() {
+                            const playAgain = confirm('Chúc mừng! Bạn đã thoát khỏi mê cung!\n\nOK: Chơi lại\nCancel: Thoát game');
+                            
+                            if (playAgain) {
+                                // Reset position and allow winning again
+                                camera.position = spawnPosition.clone();
+                                hasWon = false;
+                            } else {
+                                // Exit game - close window or reload
+                                window.location.reload();
+                            }
+                        }, 100);
+                    }
+                }
+            });
+            
+            return scene;
+        }
+
+        // ============================================
+        // MINIMAP RENDERING
+        // ============================================
+        function drawMinimap() {
+            const ctx = minimapCtx;
+            const size = 200;
+            const centerX = size / 2;
+            const centerY = size / 2;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Draw circular mask background
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, centerX - 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fill();
+            
+            // Get player position and rotation
+            const playerX = camera.position.x;
+            const playerZ = camera.position.z;
+            const playerRotation = camera.rotation.y;
+            
+            // Minimap view radius (in world units)
+            const viewRadius = 4;
+            const scale = (size / 2 - 10) / viewRadius;
+            
+            // Clip to circle
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, centerX - 5, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Draw walls within view radius
+            ctx.fillStyle = 'rgba(128, 128, 128, 0.8)';
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    if (mapGrid[row][col] === 1) {
+                        const wallX = col;
+                        const wallZ = rows - 1 - row;
+                        
+                        // Check if within view radius
+                        const dx = wallX - playerX;
+                        const dz = wallZ - playerZ;
+                        const dist = Math.sqrt(dx * dx + dz * dz);
+                        
+                        if (dist < viewRadius) {
+                            // Rotate relative to player
+                            const cos = Math.cos(-playerRotation);
+                            const sin = Math.sin(-playerRotation);
+                            const rx = dx * cos - dz * sin;
+                            const rz = dx * sin + dz * cos;
+                            
+                            // Draw wall as small square
+                            const px = centerX + rx * scale;
+                            const py = centerY - rz * scale;
+                            ctx.fillRect(px - 4, py - 4, 8, 8);
+                        }
+                    }
+                }
+            }
+            
+            // Draw goal if within range
+            if (goalMesh) {
+                const goalX = goalMesh.position.x;
+                const goalZ = goalMesh.position.z;
+                const dx = goalX - playerX;
+                const dz = goalZ - playerZ;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                
+                if (dist < viewRadius) {
+                    const cos = Math.cos(-playerRotation);
+                    const sin = Math.sin(-playerRotation);
+                    const rx = dx * cos - dz * sin;
+                    const rz = dx * sin + dz * cos;
+                    
+                    const px = centerX + rx * scale;
+                    const py = centerY - rz * scale;
+                    
+                    // Pulsing effect for goal
+                    const pulse = Math.sin(Date.now() / 200) * 3 + 8;
+                    ctx.beginPath();
+                    ctx.arc(px, py, pulse, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                    ctx.fill();
+                }
+            }
+            
+            ctx.restore();
+            
+            // Draw player (always at center, facing up)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#00ff00';
+            ctx.fill();
+            
+            // Player direction indicator (triangle pointing forward)
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY - 12);
+            ctx.lineTo(centerX - 5, centerY + 2);
+            ctx.lineTo(centerX + 5, centerY + 2);
+            ctx.closePath();
+            ctx.fillStyle = '#00ff00';
+            ctx.fill();
+            
+            // Draw border circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, centerX - 2, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // ============================================
+        // POINTER LOCK FOR MOUSE LOOK
+        // ============================================
+        function setupPointerLock() {
+            canvas.addEventListener('click', function() {
+                canvas.requestPointerLock = 
+                    canvas.requestPointerLock ||
+                    canvas.mozRequestPointerLock ||
+                    canvas.webkitRequestPointerLock;
+                
+                if (canvas.requestPointerLock) {
+                    canvas.requestPointerLock();
+                }
+            });
+            
+            document.addEventListener('pointerlockchange', onPointerLockChange, false);
+            document.addEventListener('mozpointerlockchange', onPointerLockChange, false);
+            document.addEventListener('webkitpointerlockchange', onPointerLockChange, false);
+        }
+
+        function onPointerLockChange() {
+            const locked = 
+                document.pointerLockElement === canvas ||
+                document.mozPointerLockElement === canvas ||
+                document.webkitPointerLockElement === canvas;
+            
+            if (locked) {
+                camera.attachControl(canvas, true);
+            } else {
+                camera.detachControl(canvas);
+            }
+        }
+    </script>
+</body>
+</html>
