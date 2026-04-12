@@ -36,6 +36,25 @@ const createScene = function () {
     light.intensity = 0.3;
 
     // Glow Layer for neon effects
+    // --- Phase 4: Init GUI FIRST for debug feedback ---
+    const guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+    const debugText = new BABYLON.GUI.TextBlock();
+    debugText.text = "GLB: Initializing...";
+    debugText.color = "yellow";
+    debugText.fontSize = 14;
+    debugText.fontFamily = "monospace";
+    debugText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    debugText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    debugText.paddingRight = "20px";
+    debugText.paddingTop = "20px";
+    guiTexture.addControl(debugText);
+    window.updateDebug = (msg, color) => {
+        debugText.text = "GLB: " + msg;
+        if (color) debugText.color = color;
+    };
+
+    window.updateDebug("Loading model...", "white");
+
     const glowLayer = new BABYLON.GlowLayer("glow", scene);
     glowLayer.intensity = 1.0;
 
@@ -165,6 +184,7 @@ const createScene = function () {
     let gameStarted = false;
     let frightenedTimer = 0;
     let gameTimer = 0;
+    let isHP = true; // Global graphics quality flag
 
     // Grid-based movement state
     let gridR = 0, gridC = 0;         // Current position on grid
@@ -173,6 +193,14 @@ const createScene = function () {
     const PLAYER_SPEED = 3.0;         // cells/sec (replaces old camera.speed = 0.35)
     let targetYaw = 0;                // Target camera rotation (auto-face direction)
     let bobTime = 0;                // Timer for head bob animation
+    let headBobEnabled = true;      // Toggle for head bobbing effect
+    let masterVolume = 0.7;          // Game volume (0.0 to 1.0)
+    let musicVolume = 0.5;
+    let sfxVolume = 0.8;
+    let currentFOV = 80;
+    let glowLayerIntensity = 1.0;
+    let ghostSpeedMultiplier = 1.0;
+    let currentFrightenedDuration = 10;
 
     // Manual key tracking
     const pressedKeys = new Set();
@@ -187,11 +215,12 @@ const createScene = function () {
 
     // --- Phase 4: Ghosts & AI ---
     const ghosts = [];
+    const highPolyGhosts = []; // Stores meshes from GLB
     const ghostColors = [
         new BABYLON.Color3(1, 0, 0),     // Blinky (Q1)
         new BABYLON.Color3(1, 0.4, 0.7), // Pinky (Q2)
         new BABYLON.Color3(0, 1, 1),     // Inky (Q3)
-        new BABYLON.Color3(1, 0.5, 0)    // Clyde (Q4)
+        new BABYLON.Color3(1, 0.7, 0.2)  // Clyde (Q4)
     ];
 
     const quadrants = [
@@ -202,40 +231,147 @@ const createScene = function () {
     ];
 
     const exactCorners = [
-        { r: 1, c: 1 },    // Q1 Corner - Top-Left
-        { r: 1, c: 17 },   // Q2 Corner - Top-Right
-        { r: 20, c: 1 },   // Q3 Corner - Bottom-Left (map has 22 rows, last walkable row ~20)
-        { r: 20, c: 17 }   // Q4 Corner - Bottom-Right
+        { r: 1, c: 1 },    // Q1 Corner
+        { r: 1, c: 17 },   // Q2 Corner
+        { r: 20, c: 1 },   // Q3 Corner
+        { r: 20, c: 17 }   // Q4 Corner
     ];
 
     ghostColors.forEach((color, i) => {
         const mat = new BABYLON.StandardMaterial("ghostMat" + i, scene);
         mat.diffuseColor = color;
-        mat.emissiveColor = new BABYLON.Color3(color.r * 0.8, color.g * 0.8, color.b * 0.8);
+        mat.emissiveColor = color.scale(0.5);
 
-        const mesh = BABYLON.MeshBuilder.CreateCylinder("ghost" + i, { height: 0.8, diameter: 0.6 }, scene);
-        mesh.material = mat;
+        // Movement Pivot (Invisible)
+        const ghostPivot = BABYLON.MeshBuilder.CreateBox("ghostRoot_" + i, { size: 0.1 }, scene);
+        ghostPivot.isVisible = false;
 
-        // Spawn at the 4 corners
+        // Low-Poly Mesh (Performance mode)
+        const lowPoly = BABYLON.MeshBuilder.CreateCylinder("ghostLowPoly_" + i, { height: 1.0, diameter: 0.7 }, scene);
+        lowPoly.parent = ghostPivot;
+        lowPoly.material = mat;
+
+        // Spawn position
         let spawn = exactCorners[i];
+        ghostPivot.position.x = spawn.c;
+        ghostPivot.position.z = -spawn.r;
+        ghostPivot.position.y = 0.5;
 
-        mesh.position.x = spawn.c;
-        mesh.position.z = -spawn.r;
-        mesh.position.y = 0.4;
+        // Minimap Marker (Thick cylinder visible only to minimap)
+        const mmMarkerMat = new BABYLON.StandardMaterial("mmMarkerMat" + i, scene);
+        mmMarkerMat.diffuseColor = color;
+        mmMarkerMat.emissiveColor = color.scale(0.8);
+
+        const mmMarker = BABYLON.MeshBuilder.CreateCylinder("mmMarker_" + i, { height: 0.1, diameter: 1.2 }, scene);
+        mmMarker.material = mmMarkerMat;
+        mmMarker.position.y = 10; // High up so main camera doesn't see it
+        // Enable white outlines for markers
+        mmMarker.enableEdgesRendering();
 
         ghosts.push({
-            mesh: mesh,
+            mesh: ghostPivot,
+            procMesh: lowPoly,
+            mmMarker: mmMarker, // Reference for sync
             baseMaterial: mat,
+            color: color,
             r: spawn.r,
             c: spawn.c,
+            startX: spawn.c,
+            startR: spawn.r,
             targetR: spawn.r,
             targetC: spawn.c,
             isMoving: false,
-            speed: 1.5,
-            state: "chase", // "chase", "frightened", "dead"
+            speed: 1.5 * ghostSpeedMultiplier,
+            state: "chase",
             quadrantIndex: i
         });
     });
+
+    // Load High-Poly Models from SEPARATE files
+    const ghostFiles = [
+        "pac-man_ghost_blinky.glb",
+        "pac-man_ghost_pinky.glb",
+        "pac-man_ghost_inky.glb",
+        "pac-man_ghost_clyde.glb"
+    ];
+
+    ghostFiles.forEach((fileName, i) => {
+        BABYLON.SceneLoader.ImportMesh("", "./", fileName, scene, (meshes) => {
+            const g = ghosts[i];
+            const activeSeg = document.querySelector(".segment.active");
+            const scaleVal = activeSeg ? parseFloat(activeSeg.dataset.val) : 1.0;
+            isHP = scaleVal >= 1.0;
+            
+            // Normalize pivot scaling to prevent "warping" when rotating
+            g.mesh.scaling.setAll(1.0);
+            g.procMesh.scaling.set(0.7, 0.9, 0.7); // Scale the cylinder instead
+            g.procMesh.isVisible = !isHP;
+
+            // Create a single container node for all mesh parts
+            const container = new BABYLON.TransformNode("ghost_container_" + i, scene);
+            container.parent = g.mesh;
+            container.rotation.set(-Math.PI / 2, Math.PI, 0); // Stand up + face correct
+            container.scaling.setAll(0.027);
+
+            const ghostMeshes = [];
+            meshes.forEach(m => {
+                if (!(m instanceof BABYLON.Mesh)) return;
+                m.rotationQuaternion = null;
+                m.parent = container; // Attach to container, keep original relative positions
+                ghostMeshes.push(m);
+
+                if (!g.hpg) g.hpg = m;
+                if (!g.hpgMaterials) g.hpgMaterials = [];
+                g.hpgMaterials.push({ mesh: m, mat: m.material });
+                m.isVisible = isHP;
+                // DO NOT override material colors - preserve original GLB textures
+            });
+
+            // Center the container once using combined bounding box
+            if (ghostMeshes.length > 0) {
+                container.computeWorldMatrix(true);
+                let minX = Infinity, maxX = -Infinity;
+                let minY = Infinity, maxY = -Infinity;
+                let minZ = Infinity, maxZ = -Infinity;
+
+                ghostMeshes.forEach(m => {
+                    m.computeWorldMatrix(true);
+                    const bi = m.getBoundingInfo();
+                    const bmin = bi.boundingBox.minimumWorld;
+                    const bmax = bi.boundingBox.maximumWorld;
+                    minX = Math.min(minX, bmin.x); maxX = Math.max(maxX, bmax.x);
+                    minY = Math.min(minY, bmin.y); maxY = Math.max(maxY, bmax.y);
+                    minZ = Math.min(minZ, bmin.z); maxZ = Math.max(maxZ, bmax.z);
+                });
+
+                const parentPos = g.mesh.absolutePosition;
+                const cx = (minX + maxX) / 2 - parentPos.x;
+                const cz = (minZ + maxZ) / 2 - parentPos.z;
+                container.position.x = -cx;
+                container.position.z = -cz;
+                container.position.y = -(minY - parentPos.y) - 0.5; // Ground it
+            }
+            
+            
+        }, null, (scene, message) => {
+            // Silently log errors to console but not to screen
+            console.error("Error loading ghost:", message);
+        });
+    });
+        
+        // Initial visibility sync
+        const scale = parseFloat(document.querySelector(".segment.active").dataset.val);
+        isHP = scale >= 1.0;
+        ghosts.forEach(g => {
+            if (g.hpg) {
+                g.procMesh.isVisible = !isHP;
+                // Force show all hpg children
+                g.mesh.getChildMeshes().forEach(cm => {
+                    if (cm.name.includes("LowPoly")) cm.isVisible = !isHP;
+                    else cm.isVisible = isHP;
+                });
+            }
+        });
 
     const isWalkable = (r, c) => {
         // Teleport tunnel logic (Hàng 10)
@@ -293,8 +429,11 @@ const createScene = function () {
                 ghosts.forEach(g => {
                     if (g.state === "frightened") {
                         g.state = "chase";
-                        g.mesh.material = g.baseMaterial;
-                        g.speed = 1.5;
+                        if (g.procMesh) g.procMesh.material = g.baseMaterial;
+                        if (g.hpgMaterials) {
+                            g.hpgMaterials.forEach(item => item.mesh.material = item.mat);
+                        }
+                        g.speed = 1.5 * ghostSpeedMultiplier;
                     }
                 });
             }
@@ -316,12 +455,18 @@ const createScene = function () {
                 } else if (p.type === 3) {
                     score += 50;
                     basePowerPellet.thinInstanceSetMatrixAt(p.matrixIndex, hiddenMatrix);
-                    frightenedTimer = 10.0;
+                    frightenedTimer = currentFrightenedDuration;
                     ghosts.forEach(g => {
                         if (g.state !== "dead") {
                             g.state = "frightened";
-                            g.mesh.material = scaredMaterial;
-                            g.speed = 0.8;
+                            if (g.procMesh) g.procMesh.material = scaredMaterial;
+                            if (g.hpg) {
+                                // Apply to all parts of the 3D model
+                                g.mesh.getChildMeshes().forEach(m => {
+                                    if (!m.name.includes("LowPoly")) m.material = scaredMaterial;
+                                });
+                            }
+                            g.speed = 0.8 * ghostSpeedMultiplier;
                         }
                     });
                 }
@@ -331,7 +476,43 @@ const createScene = function () {
 
         // Ghost AI
         ghosts.forEach(ghost => {
-            if (ghost.state === "dead") return;
+            if (ghost.state === "dead") {
+                // Respawn logic after 5 seconds
+                if (!ghost.deathTimer) ghost.deathTimer = 5.0;
+                ghost.deathTimer -= deltaTime;
+                if (ghost.deathTimer <= 0) {
+                    ghost.state = "chase";
+                    ghost.deathTimer = 0;
+                    ghost.mesh.position.x = ghost.startX;
+                    ghost.mesh.position.z = -ghost.startR;
+                    ghost.r = ghost.startR;
+                    ghost.c = ghost.startX;
+                    ghost.isMoving = false;
+                    // Reset materials and visibility
+                    ghost.mesh.setEnabled(true);
+                    if (ghost.procMesh) {
+                        ghost.procMesh.material = ghost.baseMaterial;
+                        ghost.procMesh.isVisible = !isHP;
+                    }
+                    if (ghost.hpg) {
+                        // Restore original materials to all model parts
+                        ghost.mesh.getChildMeshes().forEach(m => {
+                            if (m.name.includes("LowPoly")) {
+                                m.isVisible = !isHP;
+                                m.material = ghost.baseMaterial;
+                            } else {
+                                m.isVisible = isHP;
+                                // Find original material from our stored list
+                                if (ghost.hpgMaterials) {
+                                    const entry = ghost.hpgMaterials.find(item => item.mesh === m);
+                                    if (entry) m.material = entry.mat;
+                                }
+                            }
+                        });
+                    }
+                }
+                return;
+            }
 
             const distToPlayer = Math.sqrt((px - ghost.mesh.position.x) ** 2 + (pz - ghost.mesh.position.z) ** 2);
             // 2-second grace period at start to avoid instant game over
@@ -342,8 +523,12 @@ const createScene = function () {
                 } else if (ghost.state === "frightened") {
                     score += 200;
                     ghost.state = "dead";
-                    ghost.mesh.isVisible = false;
+                    ghost.deathTimer = 5.0; // Wait 5s to respawn
+                    // Hide everything
+                    ghost.mesh.setEnabled(false); 
+                    ghost.mesh.getChildMeshes().forEach(m => m.isVisible = false);
                     console.log("Ate a ghost! Score:", score);
+                    return;
                 }
             }
 
@@ -393,8 +578,20 @@ const createScene = function () {
                     ghost.c = ghost.targetC;
                     ghost.isMoving = false;
                 } else {
+                    // Face movement direction
+                    const angle = Math.atan2(mx, mz);
+                    ghost.mesh.rotation.y = angle + Math.PI;
+                    
                     ghost.mesh.position.x += (mx / mDist) * step;
                     ghost.mesh.position.z += (mz / mDist) * step;
+                }
+
+                // Update Minimap Marker position
+                if (ghost.mmMarker) {
+                    ghost.mmMarker.position.x = ghost.mesh.position.x;
+                    ghost.mmMarker.position.z = ghost.mesh.position.z;
+                    // Keep visible only if ghost is not dead
+                    ghost.mmMarker.isVisible = (ghost.state !== "dead");
                 }
             }
         });
@@ -443,13 +640,6 @@ const createScene = function () {
     playerMarker.material = playerMarkerMat;
     // Enable white outlines so the black dot doesn't disappear into the black background
     playerMarker.enableEdgesRendering();
-    playerMarker.edgesWidth = 8.0;
-    playerMarker.edgesColor = new BABYLON.Color4(1, 1, 1, 1);
-
-    // GUI
-    const guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-    // GUI specifically for the main camera, but AdvancedDynamicTexture just overlays by default
-
     const scoreText = new BABYLON.GUI.TextBlock();
     scoreText.text = "SCORE: 0";
     scoreText.color = "white";
@@ -461,54 +651,132 @@ const createScene = function () {
     scoreText.paddingTop = "20px";
     guiTexture.addControl(scoreText);
 
-    const centerText = new BABYLON.GUI.TextBlock();
-    centerText.text = "";
-    centerText.color = "white";
-    centerText.fontSize = 40;
-    centerText.fontFamily = "monospace";
-    centerText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-    centerText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-    guiTexture.addControl(centerText);
+    // --- HTML END-GAME UI ---
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const endGameStatus = document.getElementById("endGameStatus");
+    const finalScoreText = document.getElementById("finalScore");
+    const retryBtn = document.getElementById("retryBtn");
+    const endToMenuBtn = document.getElementById("endToMenuBtn");
 
-    const btnReplay = BABYLON.GUI.Button.CreateSimpleButton("btnReplay", "CHƠI LẠI");
-    btnReplay.width = "160px";
-    btnReplay.height = "60px";
-    btnReplay.color = "white";
-    btnReplay.background = "green";
-    btnReplay.thickness = 2;
-    btnReplay.top = "100px";
-    btnReplay.left = "-100px";
-    btnReplay.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-    btnReplay.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-    btnReplay.isVisible = false;
-    btnReplay.onPointerUpObservable.add(() => {
-        window.location.reload();
-    });
-    guiTexture.addControl(btnReplay);
+    const resetGame = () => {
+        score = 0;
+        gameTimer = 0;
+        frightenedTimer = 0;
+        gameOver = false;
+        gameStarted = true;
+        bobTime = 0;
 
-    const btnExit = BABYLON.GUI.Button.CreateSimpleButton("btnExit", "EXIT GAME");
-    btnExit.width = "160px";
-    btnExit.height = "60px";
-    btnExit.color = "white";
-    btnExit.background = "darkred";
-    btnExit.thickness = 2;
-    btnExit.top = "100px";
-    btnExit.left = "100px";
-    btnExit.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-    btnExit.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-    btnExit.isVisible = false;
-    btnExit.onPointerUpObservable.add(() => {
-        engine.stopRenderLoop();
-        centerText.text = "Game Closed. Thank You!";
-        btnReplay.isVisible = false;
-        btnExit.isVisible = false;
-        canvas.style.display = "none";
-    });
-    guiTexture.addControl(btnExit);
+        // Reset Pellets
+        activePellets.forEach(p => {
+            p.active = true;
+            const mat = BABYLON.Matrix.Translation(p.x, 0.3, p.z);
+            if (p.type === 2) baseNormalPellet.thinInstanceSetMatrixAt(p.matrixIndex, mat, true);
+            else if (p.type === 3) basePowerPellet.thinInstanceSetMatrixAt(p.matrixIndex, mat, true);
+        });
+        // Mandatory: Notify Babylon that the matrices have changed
+        if (baseNormalPellet) baseNormalPellet.thinInstanceBufferUpdated("matrix");
+        if (basePowerPellet) basePowerPellet.thinInstanceBufferUpdated("matrix");
+
+        // Reset Ghosts
+        ghosts.forEach(g => {
+            g.state = "chase";
+            g.deathTimer = 0;
+            g.mesh.position.x = g.startX;
+            g.mesh.position.z = -g.startR;
+            g.r = g.startR;
+            g.c = g.startX;
+            g.targetR = g.startR;
+            g.targetC = g.startX;
+            g.speed = 1.5 * ghostSpeedMultiplier;
+            g.isMoving = false;
+            g.mesh.setEnabled(true);
+            
+            // Restore original materials and visibility
+            g.mesh.getChildMeshes().forEach(m => {
+                m.isVisible = m.name.includes("LowPoly") ? !isHP : isHP;
+                if (m.name.includes("LowPoly")) {
+                    m.material = g.baseMaterial;
+                } else if (g.hpgMaterials) {
+                    const entry = g.hpgMaterials.find(item => item.mesh === m);
+                    if (entry) m.material = entry.mat;
+                }
+            });
+
+            // Reset Minimap Marker
+            if (g.mmMarker) {
+                g.mmMarker.position.x = g.startX;
+                g.mmMarker.position.z = -g.startR;
+                g.mmMarker.isVisible = true;
+            }
+        });
+
+        // Reset Player
+        camera.position.x = playerStartX;
+        camera.position.z = playerStartZ;
+        camera.setTarget(new BABYLON.Vector3(playerStartX, 0.45, playerStartX - 1));
+        gridR = -playerStartZ;
+        gridC = playerStartX;
+        targetGridR = gridR;
+        targetGridC = gridC;
+        isPlayerMoving = false;
+
+        if (playerMarker) {
+            playerMarker.position.x = playerStartX;
+            playerMarker.position.z = playerStartZ;
+        }
+        
+        camera.attachControl(canvas, true);
+        if (!document.pointerLockElement) {
+            engine.enterPointerlock();
+        }
+        
+        gameOverScreen.classList.add("hidden");
+    };
+
+    if (retryBtn) {
+        retryBtn.addEventListener("click", () => {
+            resetGame();
+        });
+    }
+    if (endToMenuBtn) {
+        endToMenuBtn.addEventListener("click", () => {
+            sessionStorage.removeItem('autoStartPacman');
+            window.location.reload();
+        });
+    }
+
+    const showEndScreen = (isWin) => {
+        if (!gameOverScreen || !gameOverScreen.classList.contains("hidden")) return;
+        
+        gameOverScreen.classList.remove("hidden");
+        endGameStatus.innerText = isWin ? "VICTORY!" : "GAME OVER";
+        finalScoreText.innerText = score;
+        
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+        camera.detachControl();
+    };
 
     // --- Menu Logic ---
     const menuOverlay = document.getElementById("menuOverlay");
+    const settingsPanel = document.getElementById("settingsPanel");
     const startBtn = document.getElementById("startBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const backToMenuBtn = document.getElementById("backToMenuBtn");
+
+    // Tab Logic
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    const tabPanes = document.querySelectorAll(".tab-pane");
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            tabPanes.forEach(p => p.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(btn.dataset.tab).classList.add("active");
+        });
+    });
 
     if (startBtn) {
         startBtn.addEventListener("click", () => {
@@ -520,6 +788,148 @@ const createScene = function () {
             }
         });
     }
+
+    if (settingsBtn) {
+        settingsBtn.addEventListener("click", () => {
+            menuOverlay.classList.add("hidden");
+            settingsPanel.classList.remove("hidden");
+        });
+    }
+
+    if (backToMenuBtn) {
+        backToMenuBtn.addEventListener("click", () => {
+            settingsPanel.classList.add("hidden");
+            menuOverlay.classList.remove("hidden");
+        });
+    }
+
+    // Apply Settings & Update Displays
+    const updateVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
+    };
+
+    document.getElementById("sensitivityRange").addEventListener("input", (e) => {
+        const percent = parseInt(e.target.value);
+        // Inverse relationship: standard is 3000 at 100%
+        camera.angularSensibility = 3000 / (percent / 100);
+        updateVal("sensitivityVal", percent + "%");
+    });
+
+    document.getElementById("fovRange").addEventListener("input", (e) => {
+        currentFOV = parseInt(e.target.value);
+        camera.fov = (currentFOV * Math.PI) / 180;
+        updateVal("fovVal", currentFOV);
+    });
+
+    document.getElementById("headBobToggle").addEventListener("change", (e) => {
+        headBobEnabled = e.target.checked;
+        if (!headBobEnabled) {
+            camera.position.y = 0.45; // Reset immediately when turned off
+            bobTime = 0;
+        }
+    });
+
+    document.getElementById("masterVolume").addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        masterVolume = val / 100;
+        updateVal("masterVolumeVal", val + "%");
+    });
+
+    document.getElementById("musicVolume").addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        musicVolume = val / 100;
+        updateVal("musicVolumeVal", val + "%");
+    });
+
+    document.getElementById("sfxVolume").addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        sfxVolume = val / 100;
+        updateVal("sfxVolumeVal", val + "%");
+    });
+
+    document.getElementById("glowIntensity").addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        glowLayerIntensity = val / 100;
+        glowLayer.intensity = glowLayerIntensity;
+        updateVal("glowVal", val + "%");
+        
+        // Ensure all neon materials are contributing
+        scene.materials.forEach(mat => {
+            if (mat.name.toLowerCase().includes("neon") || mat.name.toLowerCase().includes("glow")) {
+                mat.emissiveColor = mat.diffuseColor || new BABYLON.Color3(1,1,1);
+            }
+        });
+    });
+
+    document.getElementById("minimapToggle").addEventListener("change", (e) => {
+        const isVisible = e.target.checked;
+        scene.activeCameras[1].viewport.height = isVisible ? 0.25 : 0;
+        scene.activeCameras[1].viewport.width = isVisible ? 0.25 : 0;
+    });
+
+    window.scene = scene; // For debug inspection
+
+    document.querySelectorAll(".segment").forEach(seg => {
+        seg.addEventListener("click", () => {
+            document.querySelectorAll(".segment").forEach(s => s.classList.remove("active"));
+            seg.classList.add("active");
+            const scale = parseFloat(seg.dataset.val);
+            engine.setHardwareScalingLevel(1 / scale);
+            isHP = scale >= 1.0; // Update global isHP
+
+            // Swap Ghost Meshes based on scale
+            const isHighPoly = isHP;
+            ghosts.forEach(g => {
+                // FALLBACK: Only hide procedural mesh IF high-poly mesh actually exists and is loaded
+                if (g.hpg) {
+                    g.procMesh.isVisible = !isHighPoly;
+                    g.hpg.isVisible = isHighPoly;
+                    g.hpg.getChildMeshes().forEach(c => c.isVisible = isHighPoly);
+                } else {
+                    // If GLB failed, always show procedural
+                    g.procMesh.isVisible = true;
+                }
+            });
+        });
+    });
+
+    document.getElementById("ghostSpeed").addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        ghostSpeedMultiplier = val / 100;
+        updateVal("ghostSpeedVal", (val / 100).toFixed(1) + "x");
+        
+        // Apply to all ghosts immediately
+        ghosts.forEach(g => {
+            if (g.state === "chase") g.speed = 1.5 * ghostSpeedMultiplier;
+            else if (g.state === "frightened") g.speed = 0.8 * ghostSpeedMultiplier;
+        });
+    });
+
+    document.getElementById("frightenedDuration").addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        currentFrightenedDuration = val;
+        updateVal("frightenedVal", val + "s");
+    });
+
+    const fpsDisplay = document.getElementById("fpsDisplay");
+    const pingDisplay = document.getElementById("pingDisplay");
+    const perfHud = document.getElementById("perfHud");
+
+    document.getElementById("perfToggle").addEventListener("change", (e) => {
+        if (e.target.checked) perfHud.classList.remove("hidden");
+        else perfHud.classList.add("hidden");
+    });
+
+    // Update FPS & Ping every 500ms
+    setInterval(() => {
+        if (gameStarted && !gameOver) {
+            fpsDisplay.innerText = "FPS: " + engine.getFps().toFixed(0);
+            // Simulate a local ping for the FPS vibe
+            const fakePing = Math.floor(Math.random() * 4) + 5; 
+            pingDisplay.innerText = "PING: " + fakePing + "ms";
+        }
+    }, 500);
 
     scene.onPointerDown = (evt) => {
         if (evt.button === 0 && !gameOver && gameStarted) {
@@ -576,7 +986,7 @@ const createScene = function () {
                     gridR = targetGridR;
                     gridC = targetGridC;
                     isPlayerMoving = false;
-                    bobTime = 0;
+                    // bobTime = 0; // Removed to prevent stuttering at intersections
 
                     // Teleport logic (handled separately here)
                     if (gridR === 10) {
@@ -586,13 +996,15 @@ const createScene = function () {
                 } else {
                     camera.position.x += (dx / dist) * step;
                     camera.position.z += (dz / dist) * step;
-                    bobTime += dt * 12;
+                    if (headBobEnabled) {
+                        bobTime += dt * 12;
+                    }
                 }
             }
         }
         // ─────────────────────────────────────────────────────────────────
         // Subtle head bob during movement
-        const bobOffset = isPlayerMoving ? Math.sin(bobTime) * 0.018 : 0;
+        const bobOffset = (isPlayerMoving && headBobEnabled) ? Math.sin(bobTime) * 0.025 : 0;
         camera.position.y = 0.45 + bobOffset;
 
         // Update Minimap
@@ -608,17 +1020,7 @@ const createScene = function () {
         scoreText.text = "SCORE: " + score;
 
         if (gameOver) {
-            centerText.text = "GAME OVER\nScore: " + score;
-            centerText.color = "red";
-
-            if (!btnReplay.isVisible) {
-                camera.detachControl();
-                btnReplay.isVisible = true;
-                btnExit.isVisible = true;
-                if (document.pointerLockElement) {
-                    document.exitPointerLock();
-                }
-            }
+            showEndScreen(false);
         } else {
             // Check win
             let hasPellet = false;
@@ -628,19 +1030,9 @@ const createScene = function () {
                     break;
                 }
             }
-            if (!hasPellet && centerText.text === "" && gameTimer > 2.0) {
+            if (!hasPellet && gameTimer > 2.0) {
                 gameOver = true;
-                centerText.text = "YOU WIN!\nScore: " + score;
-                centerText.color = "yellow";
-
-                if (!btnReplay.isVisible) {
-                    camera.detachControl();
-                    btnReplay.isVisible = true;
-                    btnExit.isVisible = true;
-                    if (document.pointerLockElement) {
-                        document.exitPointerLock();
-                    }
-                }
+                showEndScreen(true);
             }
         }
     });
