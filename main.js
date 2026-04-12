@@ -11,9 +11,9 @@ const mapLayout = [
     [1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1],
     [1, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 1],
     [1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1],
-    [1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1],
+    [1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
     [1, 1, 1, 1, 2, 1, 2, 1, 1, 0, 1, 1, 2, 1, 2, 1, 1, 1, 1],
-    [1, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 1],
+    [2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2], // CỔNG TELEPORT (Hàng 10)
     [1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1],
     [1, 1, 1, 1, 2, 1, 2, 2, 2, 4, 2, 2, 2, 1, 2, 1, 1, 1, 1],
     [1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1],
@@ -26,16 +26,6 @@ const mapLayout = [
     [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
-
-// Block the boundaries completely (Force borders to value 1)
-for (let r = 0; r < mapLayout.length; r++) {
-    mapLayout[r][0] = 1;
-    mapLayout[r][mapLayout[0].length - 1] = 1;
-}
-for (let c = 0; c < mapLayout[0].length; c++) {
-    mapLayout[0][c] = 1;
-    mapLayout[mapLayout.length - 1][c] = 1;
-}
 
 const createScene = function () {
     const scene = new BABYLON.Scene(engine);
@@ -52,24 +42,19 @@ const createScene = function () {
     // Camera
     const camera = new BABYLON.UniversalCamera("MainCamera", new BABYLON.Vector3(0, 0.5, 0), scene);
     camera.attachControl(canvas, true);
-    // WASD do grid movement xử lý, không dùng physics của Babylon
+    // WASD handled by custom grid movement, not Babylon physics
     camera.keysUp = [];
     camera.keysDown = [];
     camera.keysLeft = [];
     camera.keysRight = [];
-    camera.angularSensibility = 3000; // 2000 → 3000: nhạy còn 2/3
+    camera.angularSensibility = 3000; // 2000 → 3000: sensitivity reduced to 2/3
     camera.minZ = 0.05;
     camera.checkCollisions = false;
     camera.applyGravity = false;
 
-    // Lock upward/downward movement effectively locking to Y-plane
-    // by restricting camera rotation pitch or just manually syncing position.y in render loop.
-
     scene.onPointerDown = (evt) => {
         if (evt.button === 0) engine.enterPointerlock();
     };
-
-    // GUI / Minimap Prep (Later phases)
 
     // --- Phase 2: Maze Generation ---
     let wallMaterial = new BABYLON.StandardMaterial("wallMat", scene);
@@ -98,7 +83,7 @@ const createScene = function () {
             const z = -r;
 
             if (tile === 1) { // Wall
-                // Tường hiển thị: merge để render nhanh, không cần collision
+                // Visual walls: merged for rendering performance, no physics collision needed
                 const box = BABYLON.MeshBuilder.CreateBox("wall_" + r + "_" + c, { size: 1 }, scene);
                 box.position.x = x;
                 box.position.z = z;
@@ -106,7 +91,7 @@ const createScene = function () {
                 box.checkCollisions = false;
                 wallsToMerge.push(box);
 
-                // Collision xử lý bằng mapLayout, không cần collision box vật lý
+                // Collision handled via mapLayout, not physical collision boxes
             } else if (tile === 4) { // Player Start
                 playerStartX = x;
                 playerStartZ = z;
@@ -114,7 +99,7 @@ const createScene = function () {
         }
     }
 
-    // Chỉ merge tường visual (không collision) để tối ưu render
+    // Only merge visual walls (no collision) for render optimization
     if (wallsToMerge.length > 0) {
         const mazeMesh = BABYLON.Mesh.MergeMeshes(wallsToMerge, true, true, undefined, false, true);
         mazeMesh.material = wallMaterial;
@@ -182,19 +167,19 @@ const createScene = function () {
     let gameTimer = 0;
 
     // Grid-based movement state
-    let gridR = 0, gridC = 0;         // Vị trí hiện tại trên lưới
-    let targetGridR = 0, targetGridC = 0; // Ô đích đang di chuyển đến
+    let gridR = 0, gridC = 0;         // Current position on grid
+    let targetGridR = 0, targetGridC = 0; // Target cell moving toward
     let isPlayerMoving = false;
-    const PLAYER_SPEED = 3.0;         // ô/giây (tương đương camera.speed = 0.35 cũ)
-    let targetYaw = 0;                // Góc xoay camera mục tiêu (auto-face direction)
-    let bobTime = 0;                // Timer cho head bob animation
+    const PLAYER_SPEED = 3.0;         // cells/sec (replaces old camera.speed = 0.35)
+    let targetYaw = 0;                // Target camera rotation (auto-face direction)
+    let bobTime = 0;                // Timer for head bob animation
 
-    // Theo dõi phím bấm thủ công
+    // Manual key tracking
     const pressedKeys = new Set();
     window.addEventListener('keydown', (e) => pressedKeys.add(e.code));
     window.addEventListener('keyup', (e) => pressedKeys.delete(e.code));
 
-    // Tối ưu hóa truy xuất hạt thức ăn bằng Map
+    // Optimize pellet retrieval via Map
     const pelletLookup = new Map();
     activePellets.forEach(p => {
         pelletLookup.set(`${p.x}_${p.z}`, p);
@@ -231,7 +216,7 @@ const createScene = function () {
         const mesh = BABYLON.MeshBuilder.CreateCylinder("ghost" + i, { height: 0.8, diameter: 0.6 }, scene);
         mesh.material = mat;
 
-        // Đặt đúng vào 4 góc
+        // Spawn at the 4 corners
         let spawn = exactCorners[i];
 
         mesh.position.x = spawn.c;
@@ -253,6 +238,10 @@ const createScene = function () {
     });
 
     const isWalkable = (r, c) => {
+        // Teleport tunnel logic (Hàng 10)
+        if (r === 10) {
+            if (c === -1 || c === mapLayout[0].length) return true;
+        }
         if (r < 0 || r >= mapLayout.length || c < 0 || c >= mapLayout[0].length) return false;
         return mapLayout[r][c] !== 1;
     };
@@ -295,7 +284,7 @@ const createScene = function () {
         gameTimer += deltaTime;
         const px = camera.position.x;
         const pz = camera.position.z;
-        const playerR = gridR;   // Dùng grid position chính xác thay vì Math.round
+        const playerR = gridR;   // Use precise grid position instead of Math.round
         const playerC = gridC;
 
         if (frightenedTimer > 0) {
@@ -311,13 +300,13 @@ const createScene = function () {
             }
         }
 
-        // Pellet collection - Tối ưu hóa (O(1))
+        // Pellet collection - optimized O(1)
         const pKey = `${playerC}_${-playerR}`;
         const p = pelletLookup.get(pKey);
 
         if (p && p.active) {
             const distSq = (px - p.x) * (px - p.x) + (pz - p.z) * (pz - p.z);
-            if (distSq < 0.3) { // Tăng nhẹ phạm vi ăn để cảm giác mượt hơn
+            if (distSq < 0.3) { // Slightly increased eat range for smoother feel
                 p.active = false;
                 const hiddenMatrix = BABYLON.Matrix.Translation(0, -1000, 0);
 
@@ -345,7 +334,7 @@ const createScene = function () {
             if (ghost.state === "dead") return;
 
             const distToPlayer = Math.sqrt((px - ghost.mesh.position.x) ** 2 + (pz - ghost.mesh.position.z) ** 2);
-            // Grace period 2 giây đầu để tránh game over ngay khi spawn
+            // 2-second grace period at start to avoid instant game over
             if (distToPlayer < 0.6 && gameTimer > 2.0) {
                 if (ghost.state === "chase") {
                     gameOver = true;
@@ -415,8 +404,8 @@ const createScene = function () {
     camera.position.x = playerStartX;
     camera.position.z = playerStartZ;
     camera.position.y = 0.45;
-    camera.setTarget(new BABYLON.Vector3(playerStartX, 0.45, playerStartZ - 1));
-    // Khởi tạo grid state
+    camera.setTarget(new BABYLON.Vector3(playerStartX, 0.45, playerStartX - 1));
+    // Initialize grid state
     gridR = -playerStartZ;
     gridC = playerStartX;
     targetGridR = gridR;
@@ -425,7 +414,7 @@ const createScene = function () {
     // Floor 
     const floor = BABYLON.MeshBuilder.CreateGround("floor", { width: 100, height: 100 }, scene);
     floor.position.y = 0;
-    floor.checkCollisions = false; // Không cần, đã khoá Y bằng code
+    floor.checkCollisions = false; // Not needed, Y-plane locked via code
     floor.isVisible = false;
 
     // --- Phase 5: GUI & Minimap ---
@@ -452,7 +441,7 @@ const createScene = function () {
 
     const playerMarker = BABYLON.MeshBuilder.CreateCylinder("playerMarker", { height: 0.1, diameter: 0.8 }, scene);
     playerMarker.material = playerMarkerMat;
-    // Bật viền trắng lên để chấm đen không bị chìm vào nền đen
+    // Enable white outlines so the black dot doesn't disappear into the black background
     playerMarker.enableEdgesRendering();
     playerMarker.edgesWidth = 8.0;
     playerMarker.edgesColor = new BABYLON.Color4(1, 1, 1, 1);
@@ -473,7 +462,7 @@ const createScene = function () {
     guiTexture.addControl(scoreText);
 
     const centerText = new BABYLON.GUI.TextBlock();
-    centerText.text = "Click to Start";
+    centerText.text = "";
     centerText.color = "white";
     centerText.fontSize = 40;
     centerText.fontFamily = "monospace";
@@ -497,7 +486,7 @@ const createScene = function () {
     });
     guiTexture.addControl(btnReplay);
 
-    const btnExit = BABYLON.GUI.Button.CreateSimpleButton("btnExit", "TẮT GAME");
+    const btnExit = BABYLON.GUI.Button.CreateSimpleButton("btnExit", "EXIT GAME");
     btnExit.width = "160px";
     btnExit.height = "60px";
     btnExit.color = "white";
@@ -517,20 +506,29 @@ const createScene = function () {
     });
     guiTexture.addControl(btnExit);
 
-    scene.onPointerDown = (evt) => {
-        if (evt.button === 0 && !gameOver && canvas.style.display !== "none") {
+    // --- Menu Logic ---
+    const menuOverlay = document.getElementById("menuOverlay");
+    const startBtn = document.getElementById("startBtn");
+
+    if (startBtn) {
+        startBtn.addEventListener("click", () => {
+            gameStarted = true;
+            menuOverlay.classList.add("hidden");
             engine.enterPointerlock();
-            if (!gameStarted) {
-                gameStarted = true;
-                if (centerText.text === "Click to Start") {
-                    centerText.text = "";
-                }
+            if (centerText.text === "Click to Start") {
+                centerText.text = "";
             }
+        });
+    }
+
+    scene.onPointerDown = (evt) => {
+        if (evt.button === 0 && !gameOver && gameStarted) {
+            engine.enterPointerlock();
         }
     };
 
     scene.onBeforeRenderObservable.add(() => {
-        // ── Grid-based movement (WASD theo hướng camera) ─────────────────
+        // ── Grid-based movement (WASD camera-relative) ─────────────────
         if (gameStarted && !gameOver) {
             const dt = engine.getDeltaTime() / 1000.0;
 
@@ -539,11 +537,11 @@ const createScene = function () {
                 const fwd = camera.getDirection(BABYLON.Axis.Z); // forward trong LH Babylon = +Z local
                 const rgt = camera.getDirection(BABYLON.Axis.X); // right = +X local
 
-                // Chỉ dùng thành phần XZ (bỏ Y để giữ movement phẳng theo lưới)
+                // Only use XZ components (discard Y to keep movement grid-locked)
                 const fwdX = fwd.x, fwdZ = fwd.z;
                 const rgtX = rgt.x, rgtZ = rgt.z;
 
-                // Chuyển hướng liên tục → hướng lưới gần nhất
+                // Continuously convert direction → nearest grid axis
                 const toGrid = (dx, dz) => {
                     if (Math.abs(dx) >= Math.abs(dz))
                         return { dr: 0, dc: dx > 0 ? 1 : -1 };
@@ -579,6 +577,12 @@ const createScene = function () {
                     gridC = targetGridC;
                     isPlayerMoving = false;
                     bobTime = 0;
+
+                    // Teleport logic (handled separately here)
+                    if (gridR === 10) {
+                        if (gridC === -1) { gridC = 18; targetGridC = 18; camera.position.x = 18; }
+                        else if (gridC === 19) { gridC = 0; targetGridC = 0; camera.position.x = 0; }
+                    }
                 } else {
                     camera.position.x += (dx / dist) * step;
                     camera.position.z += (dz / dist) * step;
@@ -587,7 +591,7 @@ const createScene = function () {
             }
         }
         // ─────────────────────────────────────────────────────────────────
-        // Head bob nhẹ khi di chuyển
+        // Subtle head bob during movement
         const bobOffset = isPlayerMoving ? Math.sin(bobTime) * 0.018 : 0;
         camera.position.y = 0.45 + bobOffset;
 
@@ -598,7 +602,7 @@ const createScene = function () {
         // Update Player Marker position
         playerMarker.position.x = camera.position.x;
         playerMarker.position.z = camera.position.z;
-        playerMarker.position.y = 10; // Đặt lên cao để camera chính (ở y=0.5) không nhìn thấy, chỉ minimap (y=20) nhìn thấy
+        playerMarker.position.y = 10; // Positioned high so main camera (at y=0.5) doesn't see it, only minimap (y=20)
 
         // Update Score GUI
         scoreText.text = "SCORE: " + score;

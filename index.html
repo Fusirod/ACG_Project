@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Retro First-Person Pacman</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
     <!-- Babylon.js core and dependencies -->
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
@@ -12,6 +15,23 @@
     <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
 </head>
 <body>
+    <div id="menuOverlay" class="overlay">
+        <div class="menu-card">
+            <h1>PACMAN 3D</h1>
+            <p class="subtitle">First-Person Retro Experience</p>
+            <button id="startBtn" class="btn-start">Start Game</button>
+            <div class="controls">
+                <div class="control-item">
+                    <span class="key">WASD</span>
+                    <span>Move</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">Mouse</span>
+                    <span>Look Around</span>
+                </div>
+            </div>
+        </div>
+    </div>
     <canvas id="renderCanvas"></canvas>
     <script type="module" src="main.js"></script>
 </body>
