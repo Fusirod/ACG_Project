@@ -3,25 +3,27 @@ const engine = new BABYLON.Engine(canvas, true);
 
 // Map definition: 0: path, 1: wall, 2: pellet, 3: power pellet, 4: player start
 const mapLayout = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,3,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,3,1],
-    [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
-    [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
-    [1,2,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,2,1],
-    [1,2,2,2,2,1,2,2,2,1,2,2,2,1,2,2,2,2,1],
-    [1,1,1,1,2,1,1,1,0,1,0,1,1,1,2,1,1,1,1],
-    [0,0,0,1,2,1,0,0,0,0,0,0,0,1,2,1,0,0,0],
-    [1,1,1,1,2,1,0,1,1,0,1,1,0,1,2,1,1,1,1],
-    [0,0,0,0,2,0,0,1,0,0,0,1,0,0,2,0,0,0,0],
-    [1,1,1,1,2,1,0,1,1,1,1,1,0,1,2,1,1,1,1],
-    [0,0,0,1,2,1,0,0,0,4,0,0,0,1,2,1,0,0,0],
-    [1,1,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,1,1],
-    [1,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,1],
-    [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
-    [1,3,2,1,2,2,2,2,2,2,2,2,2,2,2,1,2,3,1],
-    [1,1,2,1,2,1,2,1,1,1,1,1,2,1,2,1,2,1,1],
-    [1,2,2,2,2,1,2,2,2,1,2,2,2,1,2,2,2,2,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 1],
+    [1, 2, 1, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 1, 2, 1],
+    [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+    [1, 2, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 2, 1],
+    [1, 2, 1, 0, 0, 0, 1, 1, 0, 2, 2, 2, 0, 1, 1, 0, 0, 0, 1, 2, 1],
+    [1, 2, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 2, 1],
+    [1, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 1],
+    [1, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1, 1, 0, 1, 2, 2, 2, 2, 2, 1],
+    [1, 1, 1, 1, 2, 1, 1, 0, 1, 0, 4, 0, 1, 0, 1, 1, 2, 1, 1, 1, 1],
+    [1, 2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 0, 0, 0, 2, 2, 2, 2, 2, 2, 1],
+    [1, 2, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 2, 1],
+    [1, 2, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 2, 1],
+    [1, 2, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 2, 1],
+    [1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1],
+    [1, 2, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 2, 1],
+    [1, 2, 1, 1, 1, 1, 1, 0, 1, 0, 2, 0, 1, 0, 1, 1, 1, 1, 1, 2, 1],
+    [1, 2, 2, 2, 2, 3, 1, 0, 1, 0, 1, 0, 1, 0, 1, 3, 2, 2, 2, 2, 1],
+    [1, 2, 1, 1, 2, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 2, 1, 1, 2, 1],
+    [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
 // Block the boundaries completely (Force borders to value 1)
@@ -49,16 +51,20 @@ const createScene = function () {
     // Camera
     const camera = new BABYLON.UniversalCamera("MainCamera", new BABYLON.Vector3(0, 0.5, 0), scene);
     camera.attachControl(canvas, true);
-    camera.keysUp.push(87);    // W
-    camera.keysDown.push(83);  // S
-    camera.keysLeft.push(65);  // A
-    camera.keysRight.push(68); // D
+    // Sửa phím bị gán nhầm: Gán đè nguyên mảng thay vì push để tránh lẫn với phím mũi tên mặc định
+    camera.keysUp = [87, 38];    // W, ArrowUp
+    camera.keysDown = [83, 40];  // S, ArrowDown
+    camera.keysLeft = [65, 37];  // A, ArrowLeft
+    camera.keysRight = [68, 39]; // D, ArrowRight
     camera.speed = 0.35;       // Tăng tốc độ di chuyển
     camera.inertia = 0.2;
     camera.angularSensibility = 2000;
     camera.minZ = 0.05;
     camera.checkCollisions = true;
-    camera.ellipsoid = new BABYLON.Vector3(0.3, 0.4, 0.3);
+    // Đảm bảo ellipsoid không cao đến mức cạ xuống mặt phẳng sàn (y=0) khiến nhân vật bị phanh lại.
+    // Với tâm tại y=0.5, chiều cao 0.1, đáy va chạm ở y=0.4 (cách mặt đất khá an toàn).
+    camera.ellipsoid = new BABYLON.Vector3(0.2, 0.1, 0.2);
+    camera.collisionRetryCount = 5; // Cải thiện khi trượt dọc tường
 
     // Lock upward/downward movement effectively locking to Y-plane
     // by restricting camera rotation pitch or just manually syncing position.y in render loop.
@@ -68,7 +74,7 @@ const createScene = function () {
     };
 
     // GUI / Minimap Prep (Later phases)
-    
+
     // --- Phase 2: Maze Generation ---
     let wallMaterial = new BABYLON.StandardMaterial("wallMat", scene);
     wallMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0); // Black faces
@@ -91,19 +97,54 @@ const createScene = function () {
 
     for (let r = 0; r < mapLayout.length; r++) {
         for (let c = 0; c < mapLayout[r].length; c++) {
-            const tile = mapLayout[r][c];
-            const x = c;
-            const z = -r;
+            if (mapLayout[r][c] === 4) { // Player Start
+                playerStartX = c;
+                playerStartZ = -r;
+            }
+        }
+    }
 
-            if (tile === 1) { // Wall
-                const box = BABYLON.MeshBuilder.CreateBox("wall_" + r + "_" + c, {size: 1}, scene);
-                box.position.x = x;
-                box.position.z = z;
+    // Tối ưu grid meshing (Greedy Meshing) để giảm seam (đường nối) và block lỗi va chạm
+    const visitedWalls = new Set();
+    for (let r = 0; r < mapLayout.length; r++) {
+        for (let c = 0; c < mapLayout[r].length; c++) {
+            if (mapLayout[r][c] === 1 && !visitedWalls.has(`${r},${c}`)) {
+                // Tìm chiều ngang tối đa
+                let width = 0;
+                while (c + width < mapLayout[r].length && mapLayout[r][c + width] === 1 && !visitedWalls.has(`${r},${c + width}`)) {
+                    width++;
+                }
+
+                // Tìm chiều cao (sâu) tối đa cho khối block width này
+                let depth = 1;
+                let canExpandDown = true;
+                while (r + depth < mapLayout.length && canExpandDown) {
+                    for (let w = 0; w < width; w++) {
+                        if (mapLayout[r + depth][c + w] !== 1 || visitedWalls.has(`${r + depth},${c + w}`)) {
+                            canExpandDown = false;
+                            break;
+                        }
+                    }
+                    if (canExpandDown) {
+                        depth++;
+                    }
+                }
+
+                // Đánh dấu khối đã được gộp
+                for (let hr = 0; hr < depth; hr++) {
+                    for (let wc = 0; wc < width; wc++) {
+                        visitedWalls.add(`${r + hr},${c + wc}`);
+                    }
+                }
+
+                const blockMidX = c + (width - 1) / 2;
+                const blockMidZ = -(r + (depth - 1) / 2);
+
+                const box = BABYLON.MeshBuilder.CreateBox(`wall_${r}_${c}`, { width: width, height: 1, depth: depth }, scene);
+                box.position.x = blockMidX;
+                box.position.z = blockMidZ;
                 box.position.y = 0.5;
                 wallsToMerge.push(box);
-            } else if (tile === 4) { // Player Start
-                playerStartX = x;
-                playerStartZ = z;
             }
         }
     }
@@ -119,14 +160,14 @@ const createScene = function () {
     normalPelletMat.diffuseColor = new BABYLON.Color3(1, 1, 0.8);
     normalPelletMat.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.2); // slight yellow glow
 
-    const baseNormalPellet = BABYLON.MeshBuilder.CreateSphere("baseNormal", {diameter: 0.15}, scene);
+    const baseNormalPellet = BABYLON.MeshBuilder.CreateSphere("baseNormal", { diameter: 0.15 }, scene);
     baseNormalPellet.material = normalPelletMat;
-    
+
     const powerPelletMat = new BABYLON.StandardMaterial("powerPellet", scene);
     powerPelletMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
     powerPelletMat.emissiveColor = new BABYLON.Color3(0.8, 0.8, 0); // bright yellow glow
-    
-    const basePowerPellet = BABYLON.MeshBuilder.CreateSphere("basePower", {diameter: 0.4}, scene);
+
+    const basePowerPellet = BABYLON.MeshBuilder.CreateSphere("basePower", { diameter: 0.4 }, scene);
     basePowerPellet.material = powerPelletMat;
 
     let normalMatrices = [];
@@ -142,7 +183,7 @@ const createScene = function () {
 
             if (tile === 2 || tile === 3) {
                 const matrix = BABYLON.Matrix.Translation(x, 0.3, z);
-                
+
                 activePellets.push({
                     type: tile,
                     x: x,
@@ -182,18 +223,24 @@ const createScene = function () {
         new BABYLON.Color3(1, 0.5, 0)    // Clyde (Q4)
     ];
 
+    const mapRows = mapLayout.length;
+    const mapCols = mapLayout[0].length;
+    // Cạnh của mỗi hình vuông bằng 3/5 cạnh map
+    const sideR = Math.floor(mapRows * 0.6);
+    const sideC = Math.floor(mapCols * 0.6);
+
     const quadrants = [
-        {rMin: 0, rMax: 9, cMin: 0, cMax: 9},     // Q1: Top-Left
-        {rMin: 0, rMax: 9, cMin: 10, cMax: 18},   // Q2: Top-Right
-        {rMin: 10, rMax: 18, cMin: 0, cMax: 9},   // Q3: Bottom-Left
-        {rMin: 10, rMax: 18, cMin: 10, cMax: 18}  // Q4: Bottom-Right
+        { rMin: 0, rMax: sideR - 1, cMin: 0, cMax: sideC - 1 }, // Q1: Top-Left
+        { rMin: 0, rMax: sideR - 1, cMin: mapCols - sideC, cMax: mapCols - 1 }, // Q2: Top-Right
+        { rMin: mapRows - sideR, rMax: mapRows - 1, cMin: 0, cMax: sideC - 1 }, // Q3: Bottom-Left
+        { rMin: mapRows - sideR, rMax: mapRows - 1, cMin: mapCols - sideC, cMax: mapCols - 1 }  // Q4: Bottom-Right
     ];
 
     const exactCorners = [
-        {r: 1, c: 1},    // Q1 Corner
-        {r: 1, c: 17},   // Q2 Corner
-        {r: 17, c: 1},   // Q3 Corner
-        {r: 17, c: 17}   // Q4 Corner
+        { r: 1, c: 1 }, // Q1 Corner
+        { r: 1, c: mapCols - 2 }, // Q2 Corner
+        { r: mapRows - 2, c: 1 }, // Q3 Corner
+        { r: mapRows - 2, c: mapCols - 2 } // Q4 Corner
     ];
 
     ghostColors.forEach((color, i) => {
@@ -201,16 +248,16 @@ const createScene = function () {
         mat.diffuseColor = color;
         mat.emissiveColor = new BABYLON.Color3(color.r * 0.8, color.g * 0.8, color.b * 0.8);
 
-        const mesh = BABYLON.MeshBuilder.CreateCylinder("ghost" + i, {height: 0.8, diameter: 0.6}, scene);
+        const mesh = BABYLON.MeshBuilder.CreateCylinder("ghost" + i, { height: 0.8, diameter: 0.6 }, scene);
         mesh.material = mat;
-        
+
         // Đặt đúng vào 4 góc
         let spawn = exactCorners[i];
 
         mesh.position.x = spawn.c;
         mesh.position.z = -spawn.r;
         mesh.position.y = 0.4;
-        
+
         ghosts.push({
             mesh: mesh,
             baseMaterial: mat,
@@ -229,7 +276,7 @@ const createScene = function () {
         if (r < 0 || r >= mapLayout.length || c < 0 || c >= mapLayout[0].length) return false;
         return mapLayout[r][c] !== 1;
     };
-    
+
     // Check if cell is within ghost's assigned quadrant
     const isWalkableInQuadrant = (r, c, q) => {
         if (!isWalkable(r, c)) return false;
@@ -237,19 +284,19 @@ const createScene = function () {
     };
 
     const bfsMove = (startR, startC, targetR, targetC) => {
-        const queue = [{r: startR, c: startC, path: []}];
+        const queue = [{ r: startR, c: startC, path: [] }];
         const visited = new Set([`${startR},${startC}`]);
         const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
         while (queue.length > 0) {
-            const {r, c, path} = queue.shift();
+            const { r, c, path } = queue.shift();
             if (r === targetR && c === targetC) return path.length > 0 ? path[0] : null;
 
             for (const [dr, dc] of dirs) {
                 const nr = r + dr, nc = c + dc;
                 if (isWalkable(nr, nc) && !visited.has(`${nr},${nc}`)) {
                     visited.add(`${nr},${nc}`);
-                    queue.push({r: nr, c: nc, path: [...path, {r: nr, c: nc}]});
+                    queue.push({ r: nr, c: nc, path: [...path, { r: nr, c: nc }] });
                 }
             }
         }
@@ -263,7 +310,7 @@ const createScene = function () {
     // Collection & AI logic
     scene.onBeforeRenderObservable.add(() => {
         if (!gameStarted || gameOver) return;
-        
+
         let deltaTime = engine.getDeltaTime() / 1000.0;
         const px = camera.position.x;
         const pz = camera.position.z;
@@ -288,11 +335,11 @@ const createScene = function () {
             const p = activePellets[i];
             if (!p.active) continue;
 
-            const distSq = (px - p.x)*(px - p.x) + (pz - p.z)*(pz - p.z);
-            if (distSq < 0.25) { 
+            const distSq = (px - p.x) * (px - p.x) + (pz - p.z) * (pz - p.z);
+            if (distSq < 0.25) {
                 p.active = false;
                 const hiddenMatrix = BABYLON.Matrix.Translation(0, -1000, 0);
-                
+
                 if (p.type === 2) {
                     score += 10;
                     baseNormalPellet.thinInstanceSetMatrixAt(p.matrixIndex, hiddenMatrix);
@@ -301,7 +348,7 @@ const createScene = function () {
                     basePowerPellet.thinInstanceSetMatrixAt(p.matrixIndex, hiddenMatrix);
                     frightenedTimer = 10.0; // 10 seconds of frightened state
                     ghosts.forEach(g => {
-                        if(g.state !== "dead") {
+                        if (g.state !== "dead") {
                             g.state = "frightened";
                             g.mesh.material = scaredMaterial;
                             g.speed = 0.8;
@@ -316,7 +363,7 @@ const createScene = function () {
         ghosts.forEach(ghost => {
             if (ghost.state === "dead") return;
 
-            const distToPlayer = Math.sqrt((px - ghost.mesh.position.x)**2 + (pz - ghost.mesh.position.z)**2);
+            const distToPlayer = Math.sqrt((px - ghost.mesh.position.x) ** 2 + (pz - ghost.mesh.position.z) ** 2);
             if (distToPlayer < 0.6) {
                 if (ghost.state === "chase") {
                     gameOver = true;
@@ -341,16 +388,16 @@ const createScene = function () {
                     // Wander inside its quadrant
                     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
                     const validDirs = dirs.filter(([dr, dc]) => isWalkableInQuadrant(ghost.r + dr, ghost.c + dc, q));
-                    
+
                     if (validDirs.length > 0) {
                         const randomDir = validDirs[Math.floor(Math.random() * validDirs.length)];
-                        nextStep = {r: ghost.r + randomDir[0], c: ghost.c + randomDir[1]};
+                        nextStep = { r: ghost.r + randomDir[0], c: ghost.c + randomDir[1] };
                     } else {
                         // Fallback: Just walk anywhere if somehow stuck
                         const anyDirs = dirs.filter(([dr, dc]) => isWalkable(ghost.r + dr, ghost.c + dc));
                         if (anyDirs.length > 0) {
                             const randomDir = anyDirs[Math.floor(Math.random() * anyDirs.length)];
-                            nextStep = {r: ghost.r + randomDir[0], c: ghost.c + randomDir[1]};
+                            nextStep = { r: ghost.r + randomDir[0], c: ghost.c + randomDir[1] };
                         }
                     }
                 }
@@ -365,9 +412,9 @@ const createScene = function () {
                 const targetZ = -ghost.targetR;
                 const mx = targetX - ghost.mesh.position.x;
                 const mz = targetZ - ghost.mesh.position.z;
-                const mDist = Math.sqrt(mx*mx + mz*mz);
+                const mDist = Math.sqrt(mx * mx + mz * mz);
                 const step = ghost.speed * deltaTime;
-                
+
                 if (mDist <= step) {
                     ghost.mesh.position.x = targetX;
                     ghost.mesh.position.z = targetZ;
@@ -389,7 +436,7 @@ const createScene = function () {
     camera.setTarget(new BABYLON.Vector3(playerStartX, 0.5, playerStartZ - 1));
 
     // Floor (invisible, purely for collisions so player doesn't fall)
-    const floor = BABYLON.MeshBuilder.CreateGround("floor", {width: 50, height: 50}, scene);
+    const floor = BABYLON.MeshBuilder.CreateGround("floor", { width: 50, height: 50 }, scene);
     floor.position.y = 0;
     floor.checkCollisions = true;
     floor.isVisible = false;
@@ -410,13 +457,13 @@ const createScene = function () {
     scene.activeCameras.push(mmCamera);
 
     // Make ghosts and map visible to minimap? LayerMask could be used, but standard is fine for now
-    
+
     // Player Marker for Minimap (Black Dot)
     const playerMarkerMat = new BABYLON.StandardMaterial("playerMarkerMat", scene);
     playerMarkerMat.diffuseColor = new BABYLON.Color3(0, 0, 0); // Đen
-    playerMarkerMat.emissiveColor = new BABYLON.Color3(0.1, 0.1, 0.1); 
+    playerMarkerMat.emissiveColor = new BABYLON.Color3(0.1, 0.1, 0.1);
 
-    const playerMarker = BABYLON.MeshBuilder.CreateCylinder("playerMarker", {height: 0.1, diameter: 0.8}, scene);
+    const playerMarker = BABYLON.MeshBuilder.CreateCylinder("playerMarker", { height: 0.1, diameter: 0.8 }, scene);
     playerMarker.material = playerMarkerMat;
     // Bật viền trắng lên để chấm đen không bị chìm vào nền đen
     playerMarker.enableEdgesRendering();
@@ -426,7 +473,7 @@ const createScene = function () {
     // GUI
     const guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
     // GUI specifically for the main camera, but AdvancedDynamicTexture just overlays by default
-    
+
     const scoreText = new BABYLON.GUI.TextBlock();
     scoreText.text = "SCORE: 0";
     scoreText.color = "white";
@@ -447,41 +494,8 @@ const createScene = function () {
     centerText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     guiTexture.addControl(centerText);
 
-    const btnReplay = BABYLON.GUI.Button.CreateSimpleButton("btnReplay", "CHƠI LẠI");
-    btnReplay.width = "160px";
-    btnReplay.height = "60px";
-    btnReplay.color = "white";
-    btnReplay.background = "green";
-    btnReplay.thickness = 2;
-    btnReplay.top = "100px";
-    btnReplay.left = "-100px";
-    btnReplay.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-    btnReplay.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-    btnReplay.isVisible = false;
-    btnReplay.onPointerUpObservable.add(() => {
-        window.location.reload();
-    });
-    guiTexture.addControl(btnReplay);
-
-    const btnExit = BABYLON.GUI.Button.CreateSimpleButton("btnExit", "TẮT GAME");
-    btnExit.width = "160px";
-    btnExit.height = "60px";
-    btnExit.color = "white";
-    btnExit.background = "darkred";
-    btnExit.thickness = 2;
-    btnExit.top = "100px";
-    btnExit.left = "100px";
-    btnExit.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-    btnExit.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-    btnExit.isVisible = false;
-    btnExit.onPointerUpObservable.add(() => {
-        engine.stopRenderLoop();
-        centerText.text = "Game Closed. Thank You!";
-        btnReplay.isVisible = false;
-        btnExit.isVisible = false;
-        canvas.style.display = "none";
-    });
-    guiTexture.addControl(btnExit);
+    // Sử dụng window.confirm thay cho msgBox GUI để tiện click trực tiếp dưới dạng popup tab
+    let handledEndGame = false;
 
     scene.onPointerDown = (evt) => {
         if (evt.button === 0 && !gameOver && canvas.style.display !== "none") {
@@ -499,6 +513,10 @@ const createScene = function () {
         // Khóa nhân vật trên một mặt phẳng (Y = 0.5)
         camera.position.y = 0.5;
 
+        // Giới hạn góc nhìn lên/xuống (pitch) để tránh vector di chuyển nhắm thẳng xuống đất gây kẹt
+        if (camera.rotation.x > 0.3) camera.rotation.x = 0.3;
+        if (camera.rotation.x < -0.3) camera.rotation.x = -0.3;
+
         // Update Minimap
         mmCamera.position.x = camera.position.x;
         mmCamera.position.z = camera.position.z;
@@ -511,40 +529,45 @@ const createScene = function () {
         // Update Score GUI
         scoreText.text = "SCORE: " + score;
 
+        if (handledEndGame) return;
+
         if (gameOver) {
-            centerText.text = "GAME OVER\nScore: " + score;
-            centerText.color = "red";
-            
-            if (!btnReplay.isVisible) {
-                camera.detachControl();
-                btnReplay.isVisible = true;
-                btnExit.isVisible = true;
-                if (document.pointerLockElement) {
-                    document.exitPointerLock();
+            handledEndGame = true;
+            camera.detachControl();
+            if (document.pointerLockElement) document.exitPointerLock();
+            engine.stopRenderLoop();
+
+            setTimeout(() => {
+                let ans = window.confirm("GAME OVER!\nĐiểm của bạn: " + score + "\n\nNhấn OK để CHƠI LẠI.\nNhấn Cancel để THOÁT.");
+                if (ans) {
+                    window.location.reload();
+                } else {
+                    window.location.href = "about:blank"; // Chuyển sang thẻ trống (coi như đóng tab)
                 }
-            }
+            }, 100);
         } else {
             // Check win
             let hasPellet = false;
-            for(let i=0; i<activePellets.length; i++) {
-                if(activePellets[i].active) {
+            for (let i = 0; i < activePellets.length; i++) {
+                if (activePellets[i].active) {
                     hasPellet = true;
                     break;
                 }
             }
-            if(!hasPellet && centerText.text === "") {
-                gameOver = true;
-                centerText.text = "YOU WIN!\nScore: " + score;
-                centerText.color = "yellow";
-                
-                if (!btnReplay.isVisible) {
-                    camera.detachControl();
-                    btnReplay.isVisible = true;
-                    btnExit.isVisible = true;
-                    if (document.pointerLockElement) {
-                        document.exitPointerLock();
+            if (!hasPellet && centerText.text === "") {
+                handledEndGame = true;
+                camera.detachControl();
+                if (document.pointerLockElement) document.exitPointerLock();
+                engine.stopRenderLoop();
+
+                setTimeout(() => {
+                    let ans = window.confirm("CHÚC MỪNG BẠN ĐÃ CHIẾN THẮNG!\nĐiểm của bạn: " + score + "\n\nNhấn OK để CHƠI LẠI.\nNhấn Cancel để THOÁT.");
+                    if (ans) {
+                        window.location.reload();
+                    } else {
+                        window.location.href = "about:blank"; // Chuyển sang thẻ trống (coi như đóng tab)
                     }
-                }
+                }, 100);
             }
         }
     });

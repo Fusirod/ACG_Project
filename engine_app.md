@@ -37,7 +37,8 @@ Báo cáo này giải thích tận gốc cơ chế hoạt động thực tế (d
 ## 3. Lý Thuyết Quay & Chiếu Của Hệ Camera (Viewport Projection)
 
 ### `BABYLON.UniversalCamera`
-- Chịu trách nhiệm render không gian theo hệ phối cảnh tuyến tính (`Perspective Projection`), vật ở xa bị tụ lại 1 điểm. Camera này kế thừa 1 bộ quản lý sự kiện Input Manager, trực tiếp đọc mảng mã phím `[87, 83, 65, 68]` (Dòng `52-55` gán cho W A S D) và biến đổi chúng thành góc Roll-Pitch-Yaw kết hợp hàm va chạm đụng độ tường.
+- Chịu trách nhiệm render không gian theo hệ phối cảnh tuyến tính (`Perspective Projection`), vật ở xa bị tụ lại 1 điểm. Camera này kế thừa 1 bộ quản lý sự kiện Input Manager, trực tiếp đọc mảng mã phím `[87, 38]` cho phím W/Lên (tự gán đè cứng thay vì push để tránh bị xung đột trôi mảng phím mặc định).
+- **Cơ chế chống kẹt góc siêu mịn (Anti-stuck Collision):** Thay vì dùng hit-box `ellipsoid` hình cầu mặc định, hit-box được nén mỏng dẹp xuống `(0.2, 0.1, 0.2)` và góc cúi màn hình (Pitch `rotation.x`) bị khóa chặt biên độ `[-0.3, 0.3]`. Việc này ép hệ thống va chạm Babylon không bao giờ cộng lực vector chéo cày sâu đâm xuống mặt sàn khi ở các ngã 3, hay bắt lỗi kéo lê các mép grid ground. Quỹ đạo này tạo ra cảm giác xoay góc và trượt tường "mượt như lụa".
 
 ### `BABYLON.FreeCamera` (Chế độ Orthographic)
 - **Thiết lập MiniMap kiểu gì?** Tại Dòng `398`, `FreeCamera` được chuyển hệ máy chiếu sang dạng trực giao (`BABYLON.Camera.ORTHOGRAPHIC_CAMERA`). GPU thay vì bóp méo hình ảnh theo hình chóp nón, giờ đây quét ngang cảnh vật theo dạng hộp chữ nhật khối. Camera ở Y=20 chiếu vuông góc xuống map tạo ra mặt phẳng 2D chuẩn mà không có đường chân trời.
@@ -47,9 +48,9 @@ Báo cáo này giải thích tận gốc cơ chế hoạt động thực tế (d
 
 ## 4. Hệ Thống Lưới Hiệu Suất Cao & Ảo Hóa Hạt (Hardware Instancing)
 
-### `BABYLON.MeshBuilder` & Tối ưu Mesh.MergeMeshes
-- `MeshBuilder.CreateBox` hay `CreateSphere` chạy thuật toán lấp đầy Vertex Buffer và Index Buffer (chứa dải toạ độ 3D của các tam giác cấu tạo nên khối). 
-- **Vì sao phải MergeMeshes? (Dòng `112`)** Nếu bản đồ Mê cung có 500 đoạn tường, WebGL phải gửi luồng tín hiệu (Draw Call) từ CPU lên GPU 500 lần. Việc dùng `MergeMeshes` hàn chết hàng nghìn đỉnh polygon (đối tượng) vào chung thành duy nhất 1 luồng Buffer đơn độc (1 Draw Call). CPU "phủi sạch tay", khung hình tăng vọt từ 30 FPS lên hàng ngàn FPS.
+### Thuật toán Greedy Meshing & Tối ưu Mesh.MergeMeshes
+- **Khử mép nứt nội bộ tường (Greedy Meshing):** Bằng thuật toán quét dọc trên Map Array 2D, các ô map mang biểu chuẩn `1` liền kề không bị vẽ lẻ mà bị dính liền tự động tạo ra một khối khối hộp khổng lồ bao luôn cả đoạn ngang/dọc dài (`width = N, depth = M`). Cơ chế này quét sạch sành sanh "vết rạn nứt ranh giới gập khúc nội tại" – chính là sát thủ tiềm ẩn bắt thóp đụng độ `moveWithCollisions` gây khựng/kẹt chân.
+- **Vì sao vẫn phải MergeMeshes?** Mặc dù số khối hộp giảm kỷ lục, nếu hệ thống có K khối tường khổng lồ, WebGL vẫn phải cấp lệnh đẩy Draw Call K lần. Việc sử dụng `MergeMeshes` nhào nặn hàn chặt K lưới đỉnh polygon này thành 1 khối hình học đồ sộ duy nhất đã cắt đôi đường truyền CPU, ép Draw Call xuống con số 1 duy nhất. Máy nhẹ bẫng, FPS không bao giờ thụt giảm.
 
 ### Lãnh thổ Thin Instances (`thinInstanceAdd`)
 - **Hoạt động ra sao:** Thay vì gộp cứng như `MergeMeshes`, hệ thống `Thin Instances` dùng tính năng phần cứng cấp lõi của card đồ hoạ gọi là **GPU Hardware Instancing**. 
@@ -61,12 +62,15 @@ Báo cáo này giải thích tận gốc cơ chế hoạt động thực tế (d
 
 ---
 
-## 5. Cấu trúc Giao diện 2D Lớp Màng (GUI)
+## 5. Hệ thống Giao diện Lớp Màng (GUI) và Popup Phân Quyền Trình Duyệt
 
 ### `BABYLON.GUI.AdvancedDynamicTexture`
-- Tại sao giao diện 2D lại gọi là Texture? Bởi vì Babylon không sinh ra các thẻ `<H1>` hay `<button>` DOM truyền thống.
-- **Hoạt động (Dòng `427`):** Babylon tạo riêng 1 mặt phẳng vô hình trong suốt nằm sát mắt của camera (mặt phẳng 2D trong không gian 3D). Trên mặt phẳng nó sử dụng chuẩn API 2D Canvas thực tại trên trình duyệt máy để "vẽ lướt" các mảng pixel (Vẽ chữ, Vẽ khung chữ nhật làm Background). 
-- Bằng tính năng Raycasting tích hợp, các hàm quan sát chuột như `onPointerUpObservable` tính toán xem tia raycast phóng từ vị trí chuột ảo (trên màn hình), cắt và đâm thủng vào vùng Canvas 2D Textures pixel chứa Button Replay nằm ở khoảng toạ độ nào từ đó sinh ra sự kiện tương tác bấm click mượt mà không độ trễ. 
+- Tại sao giao diện 2D lại gọi là Texture? Bởi vì Babylon không sinh ra thẻ DOM HTML. Babylon cấp sẵn một mặt phẳng vô hình mỏng, sử dụng chuẩn API 2D Canvas của trình duyệt để "trang trí" nội dung chữ (`Text`) như tỷ số, và tiêu đề chào cờ ngay phía trước mắt kính 3D. 
+
+### Tính tương tác kết thúc qua System Dialogs (`window.confirm`)
+- Sau bước cải tổ mượt, cấu trúc MessageBox tại thời khắc End Game được trỏ cờ tín hiệu lùi giao thức về lớp điều hành System/Windows Browser gọi là **Native Web Dialogs**. 
+- Khi `gameOver` kích hoạt báo hiệu ma cắn hoặc vét sạch máng, Thread đồ họa bị cắt và treo dứt điểm (`engine.stopRenderLoop()`). Hàm vi song `setTimeout` lùi phát hành lệnh `window.confirm()` lên bề mặt trình duyệt để ngưng phong tỏa toàn màn hình, biến thành khung cửa sổ nhỏ độc lập mang đầy đủ sức nặng "Nhấn OK để Chơi Lại, Khuyên Cancel để Thoát".
+- **Tại sao phải dùng URL tĩnh about:blank khi Thoát?** Tính năng Sandbox Browser quy định JS Scripts bị cấm gọi lệnh `window.close()` khi tab tự mở vì rủi ro thao túng phá duyệt máy tính từ Web Đen. Giải pháp dự phòng tuyệt đỉnh của game là chuyển hướng trang trỏ về `window.location.href="about:blank"`, diệt sạch giao diện Game 3D khỏi bộ nhớ RAM, chôn vùi rác WebGL mang lại tác dụng tắt thẻ tab thanh thản không vi phạm Sandbox browser. 
 
 ---
 *Văn bản đã phân bổ tận gốc phương thức kết nối các tầng giao tiếp đồ hoạ từ JS (CPU) cho đến C++ WebGL (VRAM/GPU Hardware).*
