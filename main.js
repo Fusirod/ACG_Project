@@ -190,14 +190,14 @@ const createScene = function () {
     let gridR = 0, gridC = 0;         // Current position on grid
     let targetGridR = 0, targetGridC = 0; // Target cell moving toward
     let isPlayerMoving = false;
-    const PLAYER_SPEED = 3.0;         // cells/sec (replaces old camera.speed = 0.35)
+    const PLAYER_SPEED = 2.0;         // cells/sec (replaces old camera.speed = 0.35)
     let targetYaw = 0;                // Target camera rotation (auto-face direction)
     let bobTime = 0;                // Timer for head bob animation
     let headBobEnabled = true;      // Toggle for head bobbing effect
     let masterVolume = 0.7;          // Game volume (0.0 to 1.0)
     let musicVolume = 0.5;
     let sfxVolume = 0.8;
-    let currentFOV = 80;
+    let currentFOV = 60;
     let glowLayerIntensity = 1.0;
     let ghostSpeedMultiplier = 1.0;
     let currentFrightenedDuration = 10;
@@ -301,7 +301,7 @@ const createScene = function () {
             const activeSeg = document.querySelector(".segment.active");
             const scaleVal = activeSeg ? parseFloat(activeSeg.dataset.val) : 1.0;
             isHP = scaleVal >= 1.0;
-            
+
             // Normalize pivot scaling to prevent "warping" when rotating
             g.mesh.scaling.setAll(1.0);
             g.procMesh.scaling.set(0.7, 0.9, 0.7); // Scale the cylinder instead
@@ -351,27 +351,27 @@ const createScene = function () {
                 container.position.z = -cz;
                 container.position.y = -(minY - parentPos.y) - 0.5; // Ground it
             }
-            
-            
+
+
         }, null, (scene, message) => {
             // Silently log errors to console but not to screen
             console.error("Error loading ghost:", message);
         });
     });
-        
-        // Initial visibility sync
-        const scale = parseFloat(document.querySelector(".segment.active").dataset.val);
-        isHP = scale >= 1.0;
-        ghosts.forEach(g => {
-            if (g.hpg) {
-                g.procMesh.isVisible = !isHP;
-                // Force show all hpg children
-                g.mesh.getChildMeshes().forEach(cm => {
-                    if (cm.name.includes("LowPoly")) cm.isVisible = !isHP;
-                    else cm.isVisible = isHP;
-                });
-            }
-        });
+
+    // Initial visibility sync
+    const scale = parseFloat(document.querySelector(".segment.active").dataset.val);
+    isHP = scale >= 1.0;
+    ghosts.forEach(g => {
+        if (g.hpg) {
+            g.procMesh.isVisible = !isHP;
+            // Force show all hpg children
+            g.mesh.getChildMeshes().forEach(cm => {
+                if (cm.name.includes("LowPoly")) cm.isVisible = !isHP;
+                else cm.isVisible = isHP;
+            });
+        }
+    });
 
     const isWalkable = (r, c) => {
         // Teleport tunnel logic (Hàng 10)
@@ -525,7 +525,7 @@ const createScene = function () {
                     ghost.state = "dead";
                     ghost.deathTimer = 5.0; // Wait 5s to respawn
                     // Hide everything
-                    ghost.mesh.setEnabled(false); 
+                    ghost.mesh.setEnabled(false);
                     ghost.mesh.getChildMeshes().forEach(m => m.isVisible = false);
                     console.log("Ate a ghost! Score:", score);
                     return;
@@ -581,7 +581,7 @@ const createScene = function () {
                     // Face movement direction
                     const angle = Math.atan2(mx, mz);
                     ghost.mesh.rotation.y = angle + Math.PI;
-                    
+
                     ghost.mesh.position.x += (mx / mDist) * step;
                     ghost.mesh.position.z += (mz / mDist) * step;
                 }
@@ -690,7 +690,7 @@ const createScene = function () {
             g.speed = 1.5 * ghostSpeedMultiplier;
             g.isMoving = false;
             g.mesh.setEnabled(true);
-            
+
             // Restore original materials and visibility
             g.mesh.getChildMeshes().forEach(m => {
                 m.isVisible = m.name.includes("LowPoly") ? !isHP : isHP;
@@ -724,12 +724,12 @@ const createScene = function () {
             playerMarker.position.x = playerStartX;
             playerMarker.position.z = playerStartZ;
         }
-        
+
         camera.attachControl(canvas, true);
         if (!document.pointerLockElement) {
             engine.enterPointerlock();
         }
-        
+
         gameOverScreen.classList.add("hidden");
     };
 
@@ -747,11 +747,11 @@ const createScene = function () {
 
     const showEndScreen = (isWin) => {
         if (!gameOverScreen || !gameOverScreen.classList.contains("hidden")) return;
-        
+
         gameOverScreen.classList.remove("hidden");
         endGameStatus.innerText = isWin ? "VICTORY!" : "GAME OVER";
         finalScoreText.innerText = score;
-        
+
         if (document.pointerLockElement) {
             document.exitPointerLock();
         }
@@ -853,11 +853,11 @@ const createScene = function () {
         glowLayerIntensity = val / 100;
         glowLayer.intensity = glowLayerIntensity;
         updateVal("glowVal", val + "%");
-        
+
         // Ensure all neon materials are contributing
         scene.materials.forEach(mat => {
             if (mat.name.toLowerCase().includes("neon") || mat.name.toLowerCase().includes("glow")) {
-                mat.emissiveColor = mat.diffuseColor || new BABYLON.Color3(1,1,1);
+                mat.emissiveColor = mat.diffuseColor || new BABYLON.Color3(1, 1, 1);
             }
         });
     });
@@ -898,7 +898,7 @@ const createScene = function () {
         const val = parseInt(e.target.value);
         ghostSpeedMultiplier = val / 100;
         updateVal("ghostSpeedVal", (val / 100).toFixed(1) + "x");
-        
+
         // Apply to all ghosts immediately
         ghosts.forEach(g => {
             if (g.state === "chase") g.speed = 1.5 * ghostSpeedMultiplier;
@@ -926,7 +926,7 @@ const createScene = function () {
         if (gameStarted && !gameOver) {
             fpsDisplay.innerText = "FPS: " + engine.getFps().toFixed(0);
             // Simulate a local ping for the FPS vibe
-            const fakePing = Math.floor(Math.random() * 4) + 5; 
+            const fakePing = Math.floor(Math.random() * 4) + 5;
             pingDisplay.innerText = "PING: " + fakePing + "ms";
         }
     }, 500);
