@@ -97,23 +97,9 @@ const createScene = function () {
 
     for (let r = 0; r < mapLayout.length; r++) {
         for (let c = 0; c < mapLayout[r].length; c++) {
-            if (mapLayout[r][c] === 4) { // Player Start
-                playerStartX = c;
-                playerStartZ = -r;
-            }
-        }
-    }
-
-    // Tối ưu grid meshing (Greedy Meshing) để giảm seam (đường nối) và block lỗi va chạm
-    const visitedWalls = new Set();
-    for (let r = 0; r < mapLayout.length; r++) {
-        for (let c = 0; c < mapLayout[r].length; c++) {
-            if (mapLayout[r][c] === 1 && !visitedWalls.has(`${r},${c}`)) {
-                // Tìm chiều ngang tối đa
-                let width = 0;
-                while (c + width < mapLayout[r].length && mapLayout[r][c + width] === 1 && !visitedWalls.has(`${r},${c + width}`)) {
-                    width++;
-                }
+            const tile = mapLayout[r][c];
+            const x = c;
+            const z = -r;
 
             if (tile === 1) { // Wall
                 // Visual walls: merged for rendering performance, no physics collision needed
@@ -236,12 +222,6 @@ const createScene = function () {
         new BABYLON.Color3(0, 1, 1),     // Inky (Q3)
         new BABYLON.Color3(1, 0.7, 0.2)  // Clyde (Q4)
     ];
-
-    const mapRows = mapLayout.length;
-    const mapCols = mapLayout[0].length;
-    // Cạnh của mỗi hình vuông bằng 3/5 cạnh map
-    const sideR = Math.floor(mapRows * 0.6);
-    const sideC = Math.floor(mapCols * 0.6);
 
     const quadrants = [
         { rMin: 0, rMax: 10, cMin: 0, cMax: 9 },     // Q1: Top-Left
@@ -1027,10 +1007,6 @@ const createScene = function () {
         const bobOffset = (isPlayerMoving && headBobEnabled) ? Math.sin(bobTime) * 0.025 : 0;
         camera.position.y = 0.45 + bobOffset;
 
-        // Giới hạn góc nhìn lên/xuống (pitch) để tránh vector di chuyển nhắm thẳng xuống đất gây kẹt
-        if (camera.rotation.x > 0.3) camera.rotation.x = 0.3;
-        if (camera.rotation.x < -0.3) camera.rotation.x = -0.3;
-
         // Update Minimap
         mmCamera.position.x = camera.position.x;
         mmCamera.position.z = camera.position.z;
@@ -1042,8 +1018,6 @@ const createScene = function () {
 
         // Update Score GUI
         scoreText.text = "SCORE: " + score;
-
-        if (handledEndGame) return;
 
         if (gameOver) {
             showEndScreen(false);
