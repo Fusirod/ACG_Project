@@ -5,13 +5,186 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Retro First-Person Pacman</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
     <!-- Babylon.js core and dependencies -->
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
-    <!-- Optional: materials library for grid, etc (might not need it, but good to have) -->
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
 </head>
 <body>
+    <div id="menuOverlay" class="overlay">
+        <div class="menu-card">
+            <h1>PACMAN 3D</h1>
+            <p class="subtitle">First-Person Retro Experience</p>
+            <div class="menu-actions">
+                <button id="startBtn" class="btn-start">Start Game</button>
+                <button id="settingsBtn" class="btn-outline">Settings</button>
+            </div>
+            <div class="controls">
+                <div class="control-item">
+                    <span class="key">WASD</span>
+                    <span>Move</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">Mouse</span>
+                    <span>Look Around</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsPanel" class="overlay hidden">
+        <div class="settings-card expanded">
+            <div class="settings-header">
+                <h2>Settings</h2>
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="gameplay">Gameplay</button>
+                    <button class="tab-btn" data-tab="audio">Audio</button>
+                    <button class="tab-btn" data-tab="graphics">Graphics</button>
+                    <button class="tab-btn" data-tab="difficulty">Difficulty</button>
+                </div>
+            </div>
+
+            <div class="settings-content">
+                <!-- Gameplay Tab -->
+                <div class="tab-pane active" id="gameplay">
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="sensitivityRange">Mouse Sensitivity</label>
+                            <span class="val-display" id="sensitivityVal">100%</span>
+                        </div>
+                        <input type="range" id="sensitivityRange" min="10" max="500" value="100">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="fovRange">Field of View (FOV)</label>
+                            <span class="val-display" id="fovVal">80</span>
+                        </div>
+                        <input type="range" id="fovRange" min="60" max="110" value="80">
+                    </div>
+                    <div class="setting-item horizontal">
+                        <div class="label-group">
+                            <label>Head Bobbing</label>
+                            <span class="desc">Camera movement detail</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="headBobToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Audio Tab -->
+                <div class="tab-pane" id="audio">
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="masterVolume">Master Volume</label>
+                            <span class="val-display" id="masterVolumeVal">70%</span>
+                        </div>
+                        <input type="range" id="masterVolume" min="0" max="100" value="70">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="musicVolume">Music Volume</label>
+                            <span class="val-display" id="musicVolumeVal">50%</span>
+                        </div>
+                        <input type="range" id="musicVolume" min="0" max="100" value="50">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="sfxVolume">SFX Volume</label>
+                            <span class="val-display" id="sfxVolumeVal">80%</span>
+                        </div>
+                        <input type="range" id="sfxVolume" min="0" max="100" value="80">
+                    </div>
+                </div>
+
+                <!-- Graphics Tab -->
+                <div class="tab-pane" id="graphics">
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="glowIntensity">Glow Intensity</label>
+                            <span class="val-display" id="glowVal">100%</span>
+                        </div>
+                        <input type="range" id="glowIntensity" min="0" max="150" value="100">
+                    </div>
+                    <div class="setting-item horizontal">
+                        <div class="label-group">
+                            <label>Show Minimap</label>
+                            <span class="desc">Top-right radar</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="minimapToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item horizontal">
+                        <div class="label-group">
+                            <label>Performance Overlay</label>
+                            <span class="desc">FPS & Latency stats</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="perfToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>Resolution Quality</label>
+                        <div class="segmented-control">
+                            <button class="segment" data-val="0.5">Performance</button>
+                            <button class="segment active" data-val="1.0">Standard</button>
+                            <button class="segment" data-val="1.5">Ultra</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Difficulty Tab -->
+                <div class="tab-pane" id="difficulty">
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="ghostSpeed">Ghost Speed</label>
+                            <span class="val-display" id="ghostSpeedVal">1.0x</span>
+                        </div>
+                        <input type="range" id="ghostSpeed" min="50" max="200" value="100">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-title-row">
+                            <label for="frightenedDuration">Frightened Duration</label>
+                            <span class="val-display" id="frightenedVal">10s</span>
+                        </div>
+                        <input type="range" id="frightenedDuration" min="3" max="15" value="10">
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <button id="backToMenuBtn" class="btn-start">Apply & Back</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="gameOverScreen" class="overlay hidden">
+        <div class="menu-card endgame-card">
+            <h1 id="endGameStatus">GAME OVER</h1>
+            <div class="final-score-row">
+                <span>SCORE:</span>
+                <span id="finalScore" class="neon-text">0</span>
+            </div>
+            <div class="menu-actions">
+                <button id="retryBtn" class="btn-start">RETRY</button>
+                <button id="endToMenuBtn" class="btn-outline">MAIN MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="perfHud" class="perf-hud">
+        <span id="fpsDisplay">FPS: 60</span>
+        <span id="pingDisplay">PING: 5ms</span>
+    </div>
+
     <canvas id="renderCanvas"></canvas>
     <script type="module" src="main.js"></script>
 </body>
