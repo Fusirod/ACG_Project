@@ -1,7 +1,8 @@
 const canvas = document.getElementById("renderCanvas");
+// Khởi tạo engine Babylon.js để vẽ 3D lên canvas. Tham số true bật khử răng cưa (antialias).
 const engine = new BABYLON.Engine(canvas, true);
 
-// Map definition: 0: path, 1: wall, 2: pellet, 3: power pellet, 4: player start
+// Map definition: 0: đường đi, 1: tường, 2: chấm điểm nhỏ, 3: chấm sức mạnh, 4: player bắt đầu
 const mapLayout = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 3, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 3, 1],
@@ -28,15 +29,18 @@ const mapLayout = [
 ];
 
 const createScene = function () {
+    // Tạo một scene (không gian 3D chứa mọi vật thể, ánh sáng, camera...)
     const scene = new BABYLON.Scene(engine);
     scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
     scene.collisionsEnabled = true;
 
+    // Tạo ánh sáng bán cầu (Hemispheric Light) hướng từ trên xuống (Vector3(0, 1, 0))
     const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
     light.intensity = 0.3;
 
-    // Glow Layer for neon effects
-    // --- Phase 4: Init GUI FIRST for debug feedback ---
+    // Lớp phát sáng (Glow Layer) cho hiệu ứng neon
+    // --- Giai đoạn 4: Khởi tạo GUI TRƯỚC TIÊN để làm phản hồi debug ---
+    // Khởi tạo GUI (giao diện 2D) phủ toàn màn hình để vẽ text (ví dụ: debug, điểm số)
     const guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
     const debugText = new BABYLON.GUI.TextBlock();
     debugText.text = "GLB: Initializing...";
@@ -59,9 +63,11 @@ const createScene = function () {
     glowLayer.intensity = 1.0;
 
     // Camera
+    // Tạo UniversalCamera (camera góc nhìn thứ nhất, hỗ trợ cả bàn phím, chuột, cảm ứng)
     const camera = new BABYLON.UniversalCamera("MainCamera", new BABYLON.Vector3(0, 0.5, 0), scene);
+    // Gắn control chuột/bàn phím của canvas vào camera
     camera.attachControl(canvas, true);
-    // WASD handled by custom grid movement, not Babylon physics
+    // WASD được xử lý bằng logic di chuyển lưới tùy chỉnh, không dùng vật lý chuẩn của Babylon
     camera.keysUp = [];
     camera.keysDown = [];
     camera.keysLeft = [];
@@ -75,19 +81,20 @@ const createScene = function () {
         if (evt.button === 0) engine.enterPointerlock();
     };
 
-    // --- Phase 2: Maze Generation ---
+    // --- Giai đoạn 2: Tạo mê cung (Maze Generation) ---
+    // StandardMaterial: Chất liệu cơ bản nhất dùng để định nghĩa màu sắc và độ phản quang
     let wallMaterial = new BABYLON.StandardMaterial("wallMat", scene);
-    wallMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0); // Black faces
-    wallMaterial.emissiveColor = new BABYLON.Color3(0, 0.2, 0.8); // Glowing blue
-    // Optional: grid texture could be added if GridMaterial is loaded correctly
+    wallMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0); // Các mặt màu đen
+    wallMaterial.emissiveColor = new BABYLON.Color3(0, 0.2, 0.8); // Ánh sáng xanh (Glowing blue)
+    // Tùy chọn: grid texture (lưới) có thể được thêm nếu GridMaterial được load thành công
     if (BABYLON.GridMaterial) {
         const gridMat = new BABYLON.GridMaterial("gridMat", scene);
         gridMat.mainColor = new BABYLON.Color3(0, 0, 0);
-        gridMat.lineColor = new BABYLON.Color3(0, 0.5, 1); // Neon blue
+        gridMat.lineColor = new BABYLON.Color3(0, 0.5, 1); // Xanh neon (Neon blue)
         gridMat.gridRatio = 1.0;
         gridMat.majorUnitFrequency = 1;
         gridMat.minorUnitVisibility = 0;
-        gridMat.emissiveColor = new BABYLON.Color3(0, 0.2, 0.5); // Add emissive for GlowLayer
+        gridMat.emissiveColor = new BABYLON.Color3(0, 0.2, 0.5); // Thêm phát sáng cho GlowLayer
         wallMaterial = gridMat;
     }
 
@@ -101,8 +108,9 @@ const createScene = function () {
             const x = c;
             const z = -r;
 
-            if (tile === 1) { // Wall
-                // Visual walls: merged for rendering performance, no physics collision needed
+            if (tile === 1) { // Wall (Tường)
+                // Khối tường hiển thị: sẽ gộp lại để tăng hiệu suất render, không cần xử lý va chạm vật lý
+                // MeshBuilder.CreateBox: Hàm tạo mesh hình hộp chữ nhật cơ bản
                 const box = BABYLON.MeshBuilder.CreateBox("wall_" + r + "_" + c, { size: 1 }, scene);
                 box.position.x = x;
                 box.position.z = z;
@@ -110,32 +118,34 @@ const createScene = function () {
                 box.checkCollisions = false;
                 wallsToMerge.push(box);
 
-                // Collision handled via mapLayout, not physical collision boxes
-            } else if (tile === 4) { // Player Start
+                // Va chạm được xử lý qua mảng mapLayout, không cần các khối va chạm vật lý
+            } else if (tile === 4) { // Player Start (Bắt đầu người chơi)
                 playerStartX = x;
                 playerStartZ = z;
             }
         }
     }
 
-    // Only merge visual walls (no collision) for render optimization
+    // Chỉ gộp meshes tường để hiển thị (không dùng logic va chạm 3D vật lý) nhằm tối ưu render
     if (wallsToMerge.length > 0) {
+        // MergeMeshes: Gộp nhiều khối riêng lẻ thành một khối duy nhất để tăng hiệu suất render cực lớn (giảm số lần gọi draw call)
         const mazeMesh = BABYLON.Mesh.MergeMeshes(wallsToMerge, true, true, undefined, false, true);
         mazeMesh.material = wallMaterial;
         mazeMesh.checkCollisions = false;
     }
 
-    // --- Phase 3: Pellets & Collection ---
+    // --- Giai đoạn 3: Chấm điểm (Pellets) & Thu thập ---
     const normalPelletMat = new BABYLON.StandardMaterial("normalPellet", scene);
     normalPelletMat.diffuseColor = new BABYLON.Color3(1, 1, 0.8);
-    normalPelletMat.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.2); // slight yellow glow
+    normalPelletMat.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.2); // Phát sáng vàng nhẹ
 
+    // MeshBuilder.CreateSphere: Hàm tạo mesh hình cầu
     const baseNormalPellet = BABYLON.MeshBuilder.CreateSphere("baseNormal", { diameter: 0.15 }, scene);
     baseNormalPellet.material = normalPelletMat;
 
     const powerPelletMat = new BABYLON.StandardMaterial("powerPellet", scene);
     powerPelletMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
-    powerPelletMat.emissiveColor = new BABYLON.Color3(0.8, 0.8, 0); // bright yellow glow
+    powerPelletMat.emissiveColor = new BABYLON.Color3(0.8, 0.8, 0); // Vàng rực sáng
 
     const basePowerPellet = BABYLON.MeshBuilder.CreateSphere("basePower", { diameter: 0.4 }, scene);
     basePowerPellet.material = powerPelletMat;
@@ -144,7 +154,7 @@ const createScene = function () {
     let powerMatrices = [];
     const activePellets = [];
 
-    // Reparse the map for pellets (could be combined with Phase 2, but kept separate for clarity)
+    // Quét lại bản đồ để lấy các chấm điểm (có thể gộp vào Giai đoạn 2, nhưng tách ra thế này cho rõ nghĩa)
     for (let r = 0; r < mapLayout.length; r++) {
         for (let c = 0; c < mapLayout[r].length; c++) {
             const tile = mapLayout[r][c];
@@ -173,6 +183,7 @@ const createScene = function () {
     }
 
     if (normalMatrices.length > 0) {
+        // thinInstanceAdd: Kỹ thuật render hàng ngàn bản sao của một mesh chỉ với 1 lệnh draw (tối ưu cho các hạt giống nhau trên map)
         baseNormalPellet.thinInstanceAdd(normalMatrices);
     }
     if (powerMatrices.length > 0) {
@@ -184,17 +195,17 @@ const createScene = function () {
     let gameStarted = false;
     let frightenedTimer = 0;
     let gameTimer = 0;
-    let isHP = true; // Global graphics quality flag
+    let isHP = true; // Cờ bật/tắt đồ họa độ phân giải cao nói chung
 
-    // Grid-based movement state
-    let gridR = 0, gridC = 0;         // Current position on grid
-    let targetGridR = 0, targetGridC = 0; // Target cell moving toward
+    // Trạng thái di chuyển theo dạng hình lưới
+    let gridR = 0, gridC = 0;         // Vị trí hiện tại trên lưới
+    let targetGridR = 0, targetGridC = 0; // Ô mục tiêu đang đi tới
     let isPlayerMoving = false;
-    const PLAYER_SPEED = 2.0;         // cells/sec (replaces old camera.speed = 0.35)
-    let targetYaw = 0;                // Target camera rotation (auto-face direction)
-    let bobTime = 0;                // Timer for head bob animation
-    let headBobEnabled = true;      // Toggle for head bobbing effect
-    let masterVolume = 0.7;          // Game volume (0.0 to 1.0)
+    const PLAYER_SPEED = 2.0;         // ô/giây (thay cho camera.speed = 0.35 cũ)
+    let targetYaw = 0;                // Góc xoay gốc của camera (để tự động xoay góc nhìn)
+    let bobTime = 0;                // Bộ đếm thời gian hiệu ứng rung màn hình khi đi
+    let headBobEnabled = true;      // Nút tắt/mở hiệu ứng rùng lắc
+    let masterVolume = 0.7;          // Âm lượng trò chơi (0.0 đến 1.0)
     let musicVolume = 0.5;
     let sfxVolume = 0.8;
     let currentFOV = 60;
@@ -202,20 +213,20 @@ const createScene = function () {
     let ghostSpeedMultiplier = 1.0;
     let currentFrightenedDuration = 10;
 
-    // Manual key tracking
+    // Trình theo dõi phím nhấn (nhập thủ công)
     const pressedKeys = new Set();
     window.addEventListener('keydown', (e) => pressedKeys.add(e.code));
     window.addEventListener('keyup', (e) => pressedKeys.delete(e.code));
 
-    // Optimize pellet retrieval via Map
+    // Tối ưu hóa việc tìm chấm điểm (pellet) thông qua mảng cấu trúc Map
     const pelletLookup = new Map();
     activePellets.forEach(p => {
         pelletLookup.set(`${p.x}_${p.z}`, p);
     });
 
-    // --- Phase 4: Ghosts & AI ---
+    // --- Giai đoạn 4: Ma (Ghosts) & logic AI ---
     const ghosts = [];
-    const highPolyGhosts = []; // Stores meshes from GLB
+    const highPolyGhosts = []; // Lưu trữ các meshes được tải từ file GLB
     const ghostColors = [
         new BABYLON.Color3(1, 0, 0),     // Blinky (Q1)
         new BABYLON.Color3(1, 0.4, 0.7), // Pinky (Q2)
@@ -224,10 +235,10 @@ const createScene = function () {
     ];
 
     const quadrants = [
-        { rMin: 0, rMax: 10, cMin: 0, cMax: 9 },     // Q1: Top-Left
-        { rMin: 0, rMax: 10, cMin: 9, cMax: 18 },    // Q2: Top-Right
-        { rMin: 11, rMax: 21, cMin: 0, cMax: 9 },    // Q3: Bottom-Left
-        { rMin: 11, rMax: 21, cMin: 9, cMax: 18 }    // Q4: Bottom-Right
+        { rMin: 0, rMax: 10, cMin: 0, cMax: 9 },     // Q1: Góc Tên-Trái
+        { rMin: 0, rMax: 10, cMin: 9, cMax: 18 },    // Q2: Góc Trên-Phải
+        { rMin: 11, rMax: 21, cMin: 0, cMax: 9 },    // Q3: Góc Dưới-Trái
+        { rMin: 11, rMax: 21, cMin: 9, cMax: 18 }    // Q4: Góc Dưới-Phải
     ];
 
     const exactCorners = [
@@ -242,36 +253,37 @@ const createScene = function () {
         mat.diffuseColor = color;
         mat.emissiveColor = color.scale(0.5);
 
-        // Movement Pivot (Invisible)
+        // Trục tọa độ di chuyển trung tâm của Ma (Lưới vô hình)
         const ghostPivot = BABYLON.MeshBuilder.CreateBox("ghostRoot_" + i, { size: 0.1 }, scene);
         ghostPivot.isVisible = false;
 
-        // Low-Poly Mesh (Performance mode)
+        // Low-Poly Mesh (chế độ hiệu năng cao)
+        // MeshBuilder.CreateCylinder: Hàm tạo mesh hình trụ tròn
         const lowPoly = BABYLON.MeshBuilder.CreateCylinder("ghostLowPoly_" + i, { height: 1.0, diameter: 0.7 }, scene);
         lowPoly.parent = ghostPivot;
         lowPoly.material = mat;
 
-        // Spawn position
+        // Vị trí Spawn ban đầu
         let spawn = exactCorners[i];
         ghostPivot.position.x = spawn.c;
         ghostPivot.position.z = -spawn.r;
         ghostPivot.position.y = 0.5;
 
-        // Minimap Marker (Thick cylinder visible only to minimap)
+        // Cột ghim Minimap Marker (Hình trụ to, render riêng cho camera Minimap nhìn thấy)
         const mmMarkerMat = new BABYLON.StandardMaterial("mmMarkerMat" + i, scene);
         mmMarkerMat.diffuseColor = color;
         mmMarkerMat.emissiveColor = color.scale(0.8);
 
         const mmMarker = BABYLON.MeshBuilder.CreateCylinder("mmMarker_" + i, { height: 0.1, diameter: 1.2 }, scene);
         mmMarker.material = mmMarkerMat;
-        mmMarker.position.y = 10; // High up so main camera doesn't see it
-        // Enable white outlines for markers
+        mmMarker.position.y = 10; // Nằm tít trên không để camera chính không nhìn thấy được
+        // Bật hiển thị viền trắng cho khối marker để nhìn rõ hơn trên bản đồ đen
         mmMarker.enableEdgesRendering();
 
         ghosts.push({
             mesh: ghostPivot,
             procMesh: lowPoly,
-            mmMarker: mmMarker, // Reference for sync
+            mmMarker: mmMarker, // Tham chiếu marker để đồng bộ tọa độ
             baseMaterial: mat,
             color: color,
             r: spawn.r,
@@ -287,7 +299,7 @@ const createScene = function () {
         });
     });
 
-    // Load High-Poly Models from SEPARATE files
+    // Tải nhóm lứới thiết kế chi tiết cao (High-Poly) nằm trong các tệp RỜI GIẠC
     const ghostFiles = [
         "pac-man_ghost_blinky.glb",
         "pac-man_ghost_pinky.glb",
@@ -296,38 +308,40 @@ const createScene = function () {
     ];
 
     ghostFiles.forEach((fileName, i) => {
+        // SceneLoader.ImportMesh: Tải model 3D bên ngoài (file .glb, .obj) vào scene một cách bất đồng bộ
         BABYLON.SceneLoader.ImportMesh("", "./", fileName, scene, (meshes) => {
             const g = ghosts[i];
             const activeSeg = document.querySelector(".segment.active");
             const scaleVal = activeSeg ? parseFloat(activeSeg.dataset.val) : 1.0;
             isHP = scaleVal >= 1.0;
 
-            // Normalize pivot scaling to prevent "warping" when rotating
+            // Reset hệ số thu phóng ban đầu để tránh mesh bị móp méo lúc xoay
             g.mesh.scaling.setAll(1.0);
-            g.procMesh.scaling.set(0.7, 0.9, 0.7); // Scale the cylinder instead
+            g.procMesh.scaling.set(0.7, 0.9, 0.7); // Thay vào đó sẽ thu phóng chiều cao / vòng trụ hiển thị
             g.procMesh.isVisible = !isHP;
 
-            // Create a single container node for all mesh parts
+            // Tạo 1 node gom chung tất cả các mảnh của mô hình bị tách rời
+            // TransformNode: Nút vô hình dùng để gom nhóm các mesh lại với nhau. Khi dịch chuyển/xoay node này, các mesh con cũng phụ thuộc theo
             const container = new BABYLON.TransformNode("ghost_container_" + i, scene);
             container.parent = g.mesh;
-            container.rotation.set(-Math.PI / 2, Math.PI, 0); // Stand up + face correct
+            container.rotation.set(-Math.PI / 2, Math.PI, 0); // Dựng cho đứng lên + hướng về phía trước đúng chuẩn
             container.scaling.setAll(0.027);
 
             const ghostMeshes = [];
             meshes.forEach(m => {
                 if (!(m instanceof BABYLON.Mesh)) return;
                 m.rotationQuaternion = null;
-                m.parent = container; // Attach to container, keep original relative positions
+                m.parent = container; // Gắn mô hình vào khối hộp chứa, để giữ cấu trúc lắp ráp cũ
                 ghostMeshes.push(m);
 
                 if (!g.hpg) g.hpg = m;
                 if (!g.hpgMaterials) g.hpgMaterials = [];
                 g.hpgMaterials.push({ mesh: m, mat: m.material });
                 m.isVisible = isHP;
-                // DO NOT override material colors - preserve original GLB textures
+                // TUYỆT ĐỐI KHÔNG GHI ĐÈ màu vật liệu - giữ nguyên bản kết cấu thiết kế (textures) từ file GLB
             });
 
-            // Center the container once using combined bounding box
+            // Căn chính giữa cho khối node bằng cách tổng hợp khung bao hộp (bounding box) chung
             if (ghostMeshes.length > 0) {
                 container.computeWorldMatrix(true);
                 let minX = Infinity, maxX = -Infinity;
@@ -349,17 +363,17 @@ const createScene = function () {
                 const cz = (minZ + maxZ) / 2 - parentPos.z;
                 container.position.x = -cx;
                 container.position.z = -cz;
-                container.position.y = -(minY - parentPos.y) - 0.5; // Ground it
+                container.position.y = -(minY - parentPos.y) - 0.5; // Kéo thả trên mặt đất
             }
 
 
         }, null, (scene, message) => {
-            // Silently log errors to console but not to screen
+            // Ghi nhận ngầm nếu có lỗi vào console log, tránh đưa chình ình lên màn hình báo crash
             console.error("Error loading ghost:", message);
         });
     });
 
-    // Initial visibility sync
+    // Đồng bộ hiển thị ban đầu
     const scale = parseFloat(document.querySelector(".segment.active").dataset.val);
     isHP = scale >= 1.0;
     ghosts.forEach(g => {
@@ -382,7 +396,7 @@ const createScene = function () {
         return mapLayout[r][c] !== 1;
     };
 
-    // Check if cell is within ghost's assigned quadrant
+    // Kiểm tra xem ô tọa độ này có đang nằm bên trong góc phần tư quy định của một con ma hay không
     const isWalkableInQuadrant = (r, c, q) => {
         if (!isWalkable(r, c)) return false;
         return (r >= q.rMin && r <= q.rMax && c >= q.cMin && c <= q.cMax);
@@ -412,7 +426,8 @@ const createScene = function () {
     scaredMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1);
     scaredMaterial.emissiveColor = new BABYLON.Color3(0.2, 0.2, 1);
 
-    // Collection & AI logic
+    // Logic thu thập vật phẩm & AI
+    // onBeforeRenderObservable.add: Đăng ký một callback sẽ được gọi liên tục TRƯỚC mỗi khung hình (dùng như vòng lặp Game Loop của scene)
     scene.onBeforeRenderObservable.add(() => {
         if (!gameStarted || gameOver) return;
 
@@ -439,13 +454,13 @@ const createScene = function () {
             }
         }
 
-        // Pellet collection - optimized O(1)
+        // Ăn các chấm hạt - được tối ưu hóa ở mức O(1)
         const pKey = `${playerC}_${-playerR}`;
         const p = pelletLookup.get(pKey);
 
         if (p && p.active) {
             const distSq = (px - p.x) * (px - p.x) + (pz - p.z) * (pz - p.z);
-            if (distSq < 0.3) { // Slightly increased eat range for smoother feel
+            if (distSq < 0.3) { // Tăng nhẹ cự ly ăn để cảm giác chơi mượt mà hơn
                 p.active = false;
                 const hiddenMatrix = BABYLON.Matrix.Translation(0, -1000, 0);
 
@@ -461,7 +476,7 @@ const createScene = function () {
                             g.state = "frightened";
                             if (g.procMesh) g.procMesh.material = scaredMaterial;
                             if (g.hpg) {
-                                // Apply to all parts of the 3D model
+                                // Áp dụng cho toàn bộ các phần con của model 3D
                                 g.mesh.getChildMeshes().forEach(m => {
                                     if (!m.name.includes("LowPoly")) m.material = scaredMaterial;
                                 });
@@ -474,10 +489,10 @@ const createScene = function () {
             }
         }
 
-        // Ghost AI
+        // Logic AI cho Ma
         ghosts.forEach(ghost => {
             if (ghost.state === "dead") {
-                // Respawn logic after 5 seconds
+                // Logic hồi sinh sau 5 giây
                 if (!ghost.deathTimer) ghost.deathTimer = 5.0;
                 ghost.deathTimer -= deltaTime;
                 if (ghost.deathTimer <= 0) {
@@ -488,21 +503,21 @@ const createScene = function () {
                     ghost.r = ghost.startR;
                     ghost.c = ghost.startX;
                     ghost.isMoving = false;
-                    // Reset materials and visibility
+                    // Đặt lại các vật liệu (materials) và khả năng hiển thị ban đầu
                     ghost.mesh.setEnabled(true);
                     if (ghost.procMesh) {
                         ghost.procMesh.material = ghost.baseMaterial;
                         ghost.procMesh.isVisible = !isHP;
                     }
                     if (ghost.hpg) {
-                        // Restore original materials to all model parts
+                        // Phục hồi lại vật liệu nguyên bản cho tất cả các phần của model
                         ghost.mesh.getChildMeshes().forEach(m => {
                             if (m.name.includes("LowPoly")) {
                                 m.isVisible = !isHP;
                                 m.material = ghost.baseMaterial;
                             } else {
                                 m.isVisible = isHP;
-                                // Find original material from our stored list
+                                // Tìm lại đúng material ban đầu từ danh sách đã lưu trữ
                                 if (ghost.hpgMaterials) {
                                     const entry = ghost.hpgMaterials.find(item => item.mesh === m);
                                     if (entry) m.material = entry.mat;
@@ -515,7 +530,7 @@ const createScene = function () {
             }
 
             const distToPlayer = Math.sqrt((px - ghost.mesh.position.x) ** 2 + (pz - ghost.mesh.position.z) ** 2);
-            // 2-second grace period at start to avoid instant game over
+            // Nhượng bộ không chết trong 2 giây đầu lúc mới vào game để tránh game over tức tức thì
             if (distToPlayer < 0.6 && gameTimer > 2.0) {
                 if (ghost.state === "chase") {
                     gameOver = true;
@@ -523,8 +538,8 @@ const createScene = function () {
                 } else if (ghost.state === "frightened") {
                     score += 200;
                     ghost.state = "dead";
-                    ghost.deathTimer = 5.0; // Wait 5s to respawn
-                    // Hide everything
+                    ghost.deathTimer = 5.0; // Đợi 5 giây để hồi sinh
+                    // Ẩn tất cả mọi thứ
                     ghost.mesh.setEnabled(false);
                     ghost.mesh.getChildMeshes().forEach(m => m.isVisible = false);
                     console.log("Ate a ghost! Score:", score);
@@ -537,11 +552,11 @@ const createScene = function () {
 
             if (!ghost.isMoving) {
                 let nextStep = null;
-                // Only chase if player is in ghost's assigned quadrant and not frightened
+                // Chỉ bắt đầu rượt đuổi người chơi khi cả hai đang ở trong phần tư bản đồ của con ma đó và ma không bị dọa sợ
                 if (ghost.state === "chase" && playerInQuadrant) {
                     nextStep = bfsMove(ghost.r, ghost.c, playerR, playerC);
                 } else {
-                    // Wander inside its quadrant
+                    // Đi vẩn vơ đi dạo trong phần tư được giao của nó
                     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
                     const validDirs = dirs.filter(([dr, dc]) => isWalkableInQuadrant(ghost.r + dr, ghost.c + dc, q));
 
@@ -549,7 +564,7 @@ const createScene = function () {
                         const randomDir = validDirs[Math.floor(Math.random() * validDirs.length)];
                         nextStep = { r: ghost.r + randomDir[0], c: ghost.c + randomDir[1] };
                     } else {
-                        // Fallback: Just walk anywhere if somehow stuck
+                        // Dự phòng: Có thể đi bất cứ đâu phòng trường hợp không rõ lý do tự dưng bị kẹt
                         const anyDirs = dirs.filter(([dr, dc]) => isWalkable(ghost.r + dr, ghost.c + dc));
                         if (anyDirs.length > 0) {
                             const randomDir = anyDirs[Math.floor(Math.random() * anyDirs.length)];
@@ -578,7 +593,7 @@ const createScene = function () {
                     ghost.c = ghost.targetC;
                     ghost.isMoving = false;
                 } else {
-                    // Face movement direction
+                    // Xoay ma hướng mặt về phía đang di chuyển tới
                     const angle = Math.atan2(mx, mz);
                     ghost.mesh.rotation.y = angle + Math.PI;
 
@@ -586,37 +601,40 @@ const createScene = function () {
                     ghost.mesh.position.z += (mz / mDist) * step;
                 }
 
-                // Update Minimap Marker position
+                // Cập nhật tọa độ Marker của Minimap
                 if (ghost.mmMarker) {
                     ghost.mmMarker.position.x = ghost.mesh.position.x;
                     ghost.mmMarker.position.z = ghost.mesh.position.z;
-                    // Keep visible only if ghost is not dead
+                    // Chỉ hiển thị Marker trên bản đồ khi con ma đang không trong trạng thái "chết"
                     ghost.mmMarker.isVisible = (ghost.state !== "dead");
                 }
             }
         });
     });
 
-    // Set player position and look horizontally
+    // Đặt tọa độ của người chơi và góc nhìn ngang camera ban đầu
     camera.position.x = playerStartX;
     camera.position.z = playerStartZ;
     camera.position.y = 0.45;
     camera.setTarget(new BABYLON.Vector3(playerStartX, 0.45, playerStartX - 1));
-    // Initialize grid state
+    // Khởi tạo các biến lưới di chuyển
     gridR = -playerStartZ;
     gridC = playerStartX;
     targetGridR = gridR;
     targetGridC = gridC;
 
-    // Floor 
+    // Sàn nhà (Floor)
     const floor = BABYLON.MeshBuilder.CreateGround("floor", { width: 100, height: 100 }, scene);
     floor.position.y = 0;
-    floor.checkCollisions = false; // Not needed, Y-plane locked via code
+    floor.checkCollisions = false; // Không cần va chạm, vì chiều Y (cao) đã bị khóa cứng thông qua code
     floor.isVisible = false;
 
-    // --- Phase 5: GUI & Minimap ---
+    // --- Giai đoạn 5: Giao diện (GUI) & Bản đồ nhỏ (Minimap) ---
+    // FreeCamera: Camera tự di chuyển, dùng làm minimap trong trường hợp này
     const mmCamera = new BABYLON.FreeCamera("minimap", new BABYLON.Vector3(0, 20, 0), scene);
+    // setTarget: Hướng camera nhìn chằm chằm vào 1 tọa độ chỉ định
     mmCamera.setTarget(BABYLON.Vector3.Zero());
+    // Chuyển sang chế độ ORTHOGRAPHIC (chiếu trực giao, các vật thể không bị nhỏ lại khi ở xa, giống game 2D)
     mmCamera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
     const orthographicSize = 10;
     mmCamera.orthoLeft = -orthographicSize;
@@ -624,21 +642,21 @@ const createScene = function () {
     mmCamera.orthoTop = orthographicSize;
     mmCamera.orthoBottom = -orthographicSize;
     mmCamera.viewport = new BABYLON.Viewport(0.75, 0.75, 0.25, 0.25);
-    // Remove the minimap from scene by default until player clicks
-    // Actually Babylon handles multiple active cameras
+    // Ẩn minimap khỏi scene theo mặc định cho đến khi người dùng bật lên
+    // Babylon có khả năng quản lý và vẽ bằng nhiều camera hoạt động cùng lúc
     scene.activeCameras.push(camera);
     scene.activeCameras.push(mmCamera);
 
-    // Make ghosts and map visible to minimap? LayerMask could be used, but standard is fine for now
+    // Có cần cho ma và map hiển thị lên minimap không? Có thể dùng LayerMask, nhưng dùng cách chuẩn này cũng ổn rồi
 
-    // Player Marker for Minimap (Black Dot)
+    // Marker định vị người chơi trên Minimap (Tròn nhỏ màu đen)
     const playerMarkerMat = new BABYLON.StandardMaterial("playerMarkerMat", scene);
     playerMarkerMat.diffuseColor = new BABYLON.Color3(0, 0, 0); // Đen
     playerMarkerMat.emissiveColor = new BABYLON.Color3(0.1, 0.1, 0.1);
 
     const playerMarker = BABYLON.MeshBuilder.CreateCylinder("playerMarker", { height: 0.1, diameter: 0.8 }, scene);
     playerMarker.material = playerMarkerMat;
-    // Enable white outlines so the black dot doesn't disappear into the black background
+    // Bật lên viền trắng cho hình trụ đen để không bị lẫn chìm vào phông nền màu đen của bản đồ game
     playerMarker.enableEdgesRendering();
     const scoreText = new BABYLON.GUI.TextBlock();
     scoreText.text = "SCORE: 0";
@@ -651,7 +669,7 @@ const createScene = function () {
     scoreText.paddingTop = "20px";
     guiTexture.addControl(scoreText);
 
-    // --- HTML END-GAME UI ---
+    // --- Giao diện Kết Thúc Trò Chơi (HTML END-GAME UI) ---
     const gameOverScreen = document.getElementById("gameOverScreen");
     const endGameStatus = document.getElementById("endGameStatus");
     const finalScoreText = document.getElementById("finalScore");
@@ -666,18 +684,18 @@ const createScene = function () {
         gameStarted = true;
         bobTime = 0;
 
-        // Reset Pellets
+        // Reset các dấu chấm điểm
         activePellets.forEach(p => {
             p.active = true;
             const mat = BABYLON.Matrix.Translation(p.x, 0.3, p.z);
             if (p.type === 2) baseNormalPellet.thinInstanceSetMatrixAt(p.matrixIndex, mat, true);
             else if (p.type === 3) basePowerPellet.thinInstanceSetMatrixAt(p.matrixIndex, mat, true);
         });
-        // Mandatory: Notify Babylon that the matrices have changed
+        // Bắt buộc: Cần thông báo cho Babylon ngầm hiểu rằng dữ liệu ma trận (thin instance) của các hạt đã vừa thay đổi
         if (baseNormalPellet) baseNormalPellet.thinInstanceBufferUpdated("matrix");
         if (basePowerPellet) basePowerPellet.thinInstanceBufferUpdated("matrix");
 
-        // Reset Ghosts
+        // Reset trạng thái các con ma
         ghosts.forEach(g => {
             g.state = "chase";
             g.deathTimer = 0;
@@ -691,7 +709,7 @@ const createScene = function () {
             g.isMoving = false;
             g.mesh.setEnabled(true);
 
-            // Restore original materials and visibility
+            // Khôi phục lại kết cấu (materials) và hiển thị lưới mặc định ban đầu
             g.mesh.getChildMeshes().forEach(m => {
                 m.isVisible = m.name.includes("LowPoly") ? !isHP : isHP;
                 if (m.name.includes("LowPoly")) {
@@ -702,7 +720,7 @@ const createScene = function () {
                 }
             });
 
-            // Reset Minimap Marker
+            // Đặt lại tọa độ Minimap Marker
             if (g.mmMarker) {
                 g.mmMarker.position.x = g.startX;
                 g.mmMarker.position.z = -g.startR;
@@ -710,7 +728,7 @@ const createScene = function () {
             }
         });
 
-        // Reset Player
+        // Reset vị trí Người Chơi
         camera.position.x = playerStartX;
         camera.position.z = playerStartZ;
         camera.setTarget(new BABYLON.Vector3(playerStartX, 0.45, playerStartX - 1));
@@ -758,14 +776,14 @@ const createScene = function () {
         camera.detachControl();
     };
 
-    // --- Menu Logic ---
+    // --- Logic cho Menu ---
     const menuOverlay = document.getElementById("menuOverlay");
     const settingsPanel = document.getElementById("settingsPanel");
     const startBtn = document.getElementById("startBtn");
     const settingsBtn = document.getElementById("settingsBtn");
     const backToMenuBtn = document.getElementById("backToMenuBtn");
 
-    // Tab Logic
+    // Logic Tab (Chuyển đổi thẻ)
     const tabBtns = document.querySelectorAll(".tab-btn");
     const tabPanes = document.querySelectorAll(".tab-pane");
 
@@ -803,7 +821,7 @@ const createScene = function () {
         });
     }
 
-    // Apply Settings & Update Displays
+    // Áp dụng Cài đặt & Cập nhật Hiển thị
     const updateVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.innerText = val;
@@ -811,7 +829,7 @@ const createScene = function () {
 
     document.getElementById("sensitivityRange").addEventListener("input", (e) => {
         const percent = parseInt(e.target.value);
-        // Inverse relationship: standard is 3000 at 100%
+        // Mối quan hệ nghịch đảo: mặc định là 3000 ở mức 100%
         camera.angularSensibility = 3000 / (percent / 100);
         updateVal("sensitivityVal", percent + "%");
     });
@@ -825,7 +843,7 @@ const createScene = function () {
     document.getElementById("headBobToggle").addEventListener("change", (e) => {
         headBobEnabled = e.target.checked;
         if (!headBobEnabled) {
-            camera.position.y = 0.45; // Reset immediately when turned off
+            camera.position.y = 0.45; // Đặt lại lập tức (hết rung lắc) khi bị tắt đi
             bobTime = 0;
         }
     });
@@ -854,7 +872,7 @@ const createScene = function () {
         glowLayer.intensity = glowLayerIntensity;
         updateVal("glowVal", val + "%");
 
-        // Ensure all neon materials are contributing
+        // Đảm bảo tất cả các vật liệu neon đều đóng góp vào hiệu ứng sáng
         scene.materials.forEach(mat => {
             if (mat.name.toLowerCase().includes("neon") || mat.name.toLowerCase().includes("glow")) {
                 mat.emissiveColor = mat.diffuseColor || new BABYLON.Color3(1, 1, 1);
@@ -868,7 +886,7 @@ const createScene = function () {
         scene.activeCameras[1].viewport.width = isVisible ? 0.25 : 0;
     });
 
-    window.scene = scene; // For debug inspection
+    window.scene = scene; // Để có thể mở console debug kiểm tra đối tượng scene
 
     document.querySelectorAll(".segment").forEach(seg => {
         seg.addEventListener("click", () => {
@@ -878,16 +896,16 @@ const createScene = function () {
             engine.setHardwareScalingLevel(1 / scale);
             isHP = scale >= 1.0; // Update global isHP
 
-            // Swap Ghost Meshes based on scale
+            // Đánh tráo (Swap) các mesh của con ma dựa theo tỷ lệ (scale) yêu cầu phân giải ngang màn hình
             const isHighPoly = isHP;
             ghosts.forEach(g => {
-                // FALLBACK: Only hide procedural mesh IF high-poly mesh actually exists and is loaded
+                // DỰ PHÒNG: Chỉ ẩn con ma khối lởm (procedural mesh) NẾU phiên bản phân giải cao chạy ngon lành (tức tải thành công file)
                 if (g.hpg) {
                     g.procMesh.isVisible = !isHighPoly;
                     g.hpg.isVisible = isHighPoly;
                     g.hpg.getChildMeshes().forEach(c => c.isVisible = isHighPoly);
                 } else {
-                    // If GLB failed, always show procedural
+                    // Giả sử tải GLB xịt thì cứ phải show ma khối lởm default ra
                     g.procMesh.isVisible = true;
                 }
             });
@@ -899,7 +917,7 @@ const createScene = function () {
         ghostSpeedMultiplier = val / 100;
         updateVal("ghostSpeedVal", (val / 100).toFixed(1) + "x");
 
-        // Apply to all ghosts immediately
+        // Áp dụng ngay hệ số tốc độ này cho toàn bộ các con ma
         ghosts.forEach(g => {
             if (g.state === "chase") g.speed = 1.5 * ghostSpeedMultiplier;
             else if (g.state === "frightened") g.speed = 0.8 * ghostSpeedMultiplier;
@@ -921,11 +939,11 @@ const createScene = function () {
         else perfHud.classList.add("hidden");
     });
 
-    // Update FPS & Ping every 500ms
+    // Cập nhật ngầm để đồng hồ đếm FPS & Ping sau mỗi 500ms
     setInterval(() => {
         if (gameStarted && !gameOver) {
             fpsDisplay.innerText = "FPS: " + engine.getFps().toFixed(0);
-            // Simulate a local ping for the FPS vibe
+            // Mô phỏng chỉ số báo ping cục bộ ảo để buff độ ngầu cho người chơi màn hình FPS
             const fakePing = Math.floor(Math.random() * 4) + 5;
             pingDisplay.innerText = "PING: " + fakePing + "ms";
         }
@@ -1003,26 +1021,26 @@ const createScene = function () {
             }
         }
         // ─────────────────────────────────────────────────────────────────
-        // Subtle head bob during movement
+        // Hiệu ứng nhấp nhô nhẹ của đầu khi đang di chuyển
         const bobOffset = (isPlayerMoving && headBobEnabled) ? Math.sin(bobTime) * 0.025 : 0;
         camera.position.y = 0.45 + bobOffset;
 
-        // Update Minimap
+        // Cập nhật vị trí hiển thị Minimap
         mmCamera.position.x = camera.position.x;
         mmCamera.position.z = camera.position.z;
 
-        // Update Player Marker position
+        // Cập nhật tọa độ Marker của cục kim định hướng người chơi
         playerMarker.position.x = camera.position.x;
         playerMarker.position.z = camera.position.z;
-        playerMarker.position.y = 10; // Positioned high so main camera (at y=0.5) doesn't see it, only minimap (y=20)
+        playerMarker.position.y = 10; // Đặt cực cao cho thoát khỏi vị trí y=0.5 của camera chính, chỉ để camera của minimap chiếu y=20 rọi xuống thấy thôi
 
-        // Update Score GUI
+        // Nạp điểm số (Score) lên bộ GUI text 2D hiển thị góc màn hình 
         scoreText.text = "SCORE: " + score;
 
         if (gameOver) {
             showEndScreen(false);
         } else {
-            // Check win
+            // Kiểm tra phân thắng bại (nếu nuốt sạch các viên nấm thì ăn 10 điểm Win)
             let hasPellet = false;
             for (let i = 0; i < activePellets.length; i++) {
                 if (activePellets[i].active) {
@@ -1042,10 +1060,12 @@ const createScene = function () {
 
 const scene = createScene();
 
+// runRenderLoop: Vòng lặp quan trọng nhất, yêu cầu Engine liên tục gọi hàm render() của Scene để vẽ ra màn hình
 engine.runRenderLoop(function () {
     scene.render();
 });
 
 window.addEventListener("resize", function () {
+    // engine.resize(): Tự động co giãn nội dung 3D cho khớp với tỷ lệ mới của trình duyệt nếu cửa sổ thay đổi kích cỡ
     engine.resize();
 });
